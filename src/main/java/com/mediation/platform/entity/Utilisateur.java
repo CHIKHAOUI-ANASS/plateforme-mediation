@@ -208,4 +208,7 @@ public abstract class Utilisateur {
                 ", statut=" + statut +
                 '}';
     }
+
+    public void setDerniereConnexion(LocalDateTime now) {
+    }
 }
