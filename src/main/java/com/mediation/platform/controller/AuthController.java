@@ -20,7 +20,7 @@ import java.util.Optional;
 import java.util.UUID;
 
 @RestController
-@RequestMapping("/api/auth")
+@RequestMapping("/auth")  // CHANGÉ: Supprimé /api
 @CrossOrigin(origins = "*", maxAge = 3600)
 public class AuthController {
 
@@ -43,8 +43,16 @@ public class AuthController {
     private AuthMapper authMapper;
 
     /**
+     * Test endpoint
+     */
+    @GetMapping("/test")
+    public ResponseEntity<String> test() {
+        return ResponseEntity.ok("AuthController fonctionne !");
+    }
+
+    /**
      * Connexion d'un utilisateur
-     * POST /api/auth/login
+     * POST /auth/login
      */
     @PostMapping("/login")
     public ResponseEntity<ApiResponse<LoginResponse>> login(
@@ -84,7 +92,7 @@ public class AuthController {
 
     /**
      * Inscription d'un donateur
-     * POST /api/auth/register/donateur
+     * POST /auth/register/donateur
      */
     @PostMapping("/register/donateur")
     public ResponseEntity<ApiResponse<LoginResponse>> registerDonateur(
@@ -131,7 +139,7 @@ public class AuthController {
 
     /**
      * Inscription d'une association
-     * POST /api/auth/register/association
+     * POST /auth/register/association
      */
     @PostMapping("/register/association")
     public ResponseEntity<ApiResponse<String>> registerAssociation(
@@ -182,108 +190,8 @@ public class AuthController {
     }
 
     /**
-     * Changement de mot de passe
-     * PUT /api/auth/change-password/{userId}
-     */
-    @PutMapping("/change-password/{userId}")
-    public ResponseEntity<ApiResponse<String>> changePassword(
-            @PathVariable Long userId,
-            @Valid @RequestBody ChangePasswordRequest changePasswordRequest) {
-
-        try {
-            // Vérifier que les mots de passe correspondent
-            if (!changePasswordRequest.isPasswordMatch()) {
-                return ResponseEntity.status(HttpStatus.BAD_REQUEST)
-                        .body(ApiResponse.error("Les mots de passe ne correspondent pas"));
-            }
-
-            // Changer le mot de passe
-            boolean success = authenticationService.changerMotDePasse(
-                    userId,
-                    changePasswordRequest.getAncienMotDePasse(),
-                    changePasswordRequest.getNouveauMotDePasse()
-            );
-
-            if (success) {
-                // Envoyer email de confirmation
-                try {
-                    Utilisateur user = utilisateurService.findById(userId);
-                    emailService.envoyerEmailPersonnalise(
-                            user.getEmail(),
-                            "Mot de passe modifié",
-                            "Bonjour " + user.getPrenom() + ",\n\n" +
-                                    "Votre mot de passe a été modifié avec succès.\n" +
-                                    "Si vous n'êtes pas à l'origine de cette modification, contactez-nous immédiatement.\n\n" +
-                                    "Cordialement,\nL'équipe de la plateforme"
-                    );
-                } catch (Exception emailException) {
-                    System.err.println("Erreur envoi email de confirmation: " + emailException.getMessage());
-                }
-
-                return ResponseEntity.ok(
-                        ApiResponse.success("Mot de passe modifié avec succès", "Changement effectué")
-                );
-            } else {
-                return ResponseEntity.status(HttpStatus.UNAUTHORIZED)
-                        .body(ApiResponse.error("Ancien mot de passe incorrect"));
-            }
-
-        } catch (Exception e) {
-            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
-                    .body(ApiResponse.error("Erreur lors du changement de mot de passe", e.getMessage()));
-        }
-    }
-
-    /**
-     * Réinitialisation de mot de passe
-     * POST /api/auth/reset-password
-     */
-    @PostMapping("/reset-password")
-    public ResponseEntity<ApiResponse<String>> resetPassword(
-            @Valid @RequestBody ResetPasswordRequest resetPasswordRequest) {
-
-        try {
-            Optional<Utilisateur> utilisateur = utilisateurService.findByEmail(resetPasswordRequest.getEmail());
-
-            if (utilisateur.isPresent()) {
-                // Générer un nouveau mot de passe temporaire
-                String nouveauMotDePasse = genererMotDePasseTemporaire();
-
-                // Réinitialiser le mot de passe
-                authenticationService.resetMotDePasse(
-                        resetPasswordRequest.getEmail(),
-                        nouveauMotDePasse
-                );
-
-                // Envoyer email avec le nouveau mot de passe
-                try {
-                    emailService.envoyerEmailResetMotDePasse(
-                            utilisateur.get().getEmail(),
-                            nouveauMotDePasse
-                    );
-                } catch (Exception emailException) {
-                    System.err.println("Erreur envoi email de reset: " + emailException.getMessage());
-                    return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
-                            .body(ApiResponse.error("Erreur lors de l'envoi de l'email"));
-                }
-
-                return ResponseEntity.ok(
-                        ApiResponse.success("Un nouveau mot de passe a été envoyé à votre adresse email", "Email envoyé")
-                );
-            } else {
-                return ResponseEntity.status(HttpStatus.NOT_FOUND)
-                        .body(ApiResponse.error("Aucun compte trouvé avec cet email"));
-            }
-
-        } catch (Exception e) {
-            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
-                    .body(ApiResponse.error("Erreur lors de la réinitialisation", e.getMessage()));
-        }
-    }
-
-    /**
      * Vérifier si un email existe
-     * GET /api/auth/check-email?email=test@example.com
+     * GET /auth/check-email?email=test@example.com
      */
     @GetMapping("/check-email")
     public ResponseEntity<ApiResponse<Boolean>> checkEmail(@RequestParam String email) {
@@ -305,135 +213,96 @@ public class AuthController {
     }
 
     /**
-     * Déconnexion
-     * POST /api/auth/logout
+     * Changement de mot de passe
+     * PUT /auth/change-password/{userId}
      */
-    @PostMapping("/logout")
-    public ResponseEntity<ApiResponse<String>> logout() {
-        // Pour l'instant, la déconnexion est gérée côté client
-        return ResponseEntity.ok(
-                ApiResponse.success("Déconnexion réussie", "Logged out")
-        );
-    }
-
-    /**
-     * Profil utilisateur connecté
-     * GET /api/auth/profile/{userId}
-     */
-    @GetMapping("/profile/{userId}")
-    public ResponseEntity<ApiResponse<LoginResponse>> getProfile(@PathVariable Long userId) {
-
-        try {
-            Utilisateur utilisateur = utilisateurService.findById(userId);
-            LoginResponse profile = authMapper.toLoginResponse(utilisateur);
-
-            return ResponseEntity.ok(
-                    ApiResponse.success("Profil récupéré avec succès", profile)
-            );
-
-        } catch (Exception e) {
-            return ResponseEntity.status(HttpStatus.NOT_FOUND)
-                    .body(ApiResponse.error("Utilisateur non trouvé", e.getMessage()));
-        }
-    }
-
-    /**
-     * Valider un compte utilisateur (pour les administrateurs)
-     * PUT /api/auth/validate-account/{userId}
-     */
-    @PutMapping("/validate-account/{userId}")
-    public ResponseEntity<ApiResponse<String>> validateAccount(@PathVariable Long userId) {
-
-        try {
-            Utilisateur utilisateur = utilisateurService.findById(userId);
-            utilisateur.setStatut(StatutUtilisateur.ACTIF);
-            utilisateurService.update(userId, utilisateur);
-
-            // Si c'est une association, envoyer email de validation
-            if (utilisateur instanceof Association) {
-                Association association = (Association) utilisateur;
-                try {
-                    emailService.envoyerEmailValidationAssociation(
-                            association.getEmail(),
-                            association.getNomAssociation()
-                    );
-                } catch (Exception emailException) {
-                    System.err.println("Erreur envoi email de validation: " + emailException.getMessage());
-                }
-            }
-
-            return ResponseEntity.ok(
-                    ApiResponse.success("Compte validé avec succès", "Compte activé")
-            );
-
-        } catch (Exception e) {
-            return ResponseEntity.status(HttpStatus.NOT_FOUND)
-                    .body(ApiResponse.error("Utilisateur non trouvé", e.getMessage()));
-        }
-    }
-
-    /**
-     * Refuser un compte utilisateur (pour les administrateurs)
-     * PUT /api/auth/reject-account/{userId}?motif=...
-     */
-    @PutMapping("/reject-account/{userId}")
-    public ResponseEntity<ApiResponse<String>> rejectAccount(
+    @PutMapping("/change-password/{userId}")
+    public ResponseEntity<ApiResponse<String>> changePassword(
             @PathVariable Long userId,
-            @RequestParam(required = false) String motif) {
+            @Valid @RequestBody ChangePasswordRequest changePasswordRequest) {
 
         try {
-            Utilisateur utilisateur = utilisateurService.findById(userId);
-            utilisateur.setStatut(StatutUtilisateur.REFUSE);
-            utilisateurService.update(userId, utilisateur);
-
-            // Si c'est une association, envoyer email de refus
-            if (utilisateur instanceof Association) {
-                Association association = (Association) utilisateur;
-                try {
-                    emailService.envoyerEmailRefusAssociation(
-                            association.getEmail(),
-                            association.getNomAssociation(),
-                            motif
-                    );
-                } catch (Exception emailException) {
-                    System.err.println("Erreur envoi email de refus: " + emailException.getMessage());
-                }
+            // Vérifier que les mots de passe correspondent
+            if (!changePasswordRequest.isPasswordMatch()) {
+                return ResponseEntity.status(HttpStatus.BAD_REQUEST)
+                        .body(ApiResponse.error("Les mots de passe ne correspondent pas"));
             }
 
-            return ResponseEntity.ok(
-                    ApiResponse.success("Compte refusé", "Compte rejeté")
+            // Changer le mot de passe
+            boolean success = authenticationService.changerMotDePasse(
+                    userId,
+                    changePasswordRequest.getAncienMotDePasse(),
+                    changePasswordRequest.getNouveauMotDePasse()
             );
 
+            if (success) {
+                return ResponseEntity.ok(
+                        ApiResponse.success("Mot de passe modifié avec succès", "Changement effectué")
+                );
+            } else {
+                return ResponseEntity.status(HttpStatus.UNAUTHORIZED)
+                        .body(ApiResponse.error("Ancien mot de passe incorrect"));
+            }
+
         } catch (Exception e) {
-            return ResponseEntity.status(HttpStatus.NOT_FOUND)
-                    .body(ApiResponse.error("Utilisateur non trouvé", e.getMessage()));
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
+                    .body(ApiResponse.error("Erreur lors du changement de mot de passe", e.getMessage()));
+        }
+    }
+
+    /**
+     * Réinitialisation de mot de passe
+     * POST /auth/reset-password
+     */
+    @PostMapping("/reset-password")
+    public ResponseEntity<ApiResponse<String>> resetPassword(
+            @Valid @RequestBody ResetPasswordRequest resetPasswordRequest) {
+
+        try {
+            Optional<Utilisateur> utilisateur = utilisateurService.findByEmail(resetPasswordRequest.getEmail());
+
+            if (utilisateur.isPresent()) {
+                // Générer un nouveau mot de passe temporaire
+                String nouveauMotDePasse = genererMotDePasseTemporaire();
+
+                // Réinitialiser le mot de passe
+                authenticationService.resetMotDePasse(
+                        resetPasswordRequest.getEmail(),
+                        nouveauMotDePasse
+                );
+
+                return ResponseEntity.ok(
+                        ApiResponse.success("Un nouveau mot de passe a été envoyé à votre adresse email", "Email envoyé")
+                );
+            } else {
+                return ResponseEntity.status(HttpStatus.NOT_FOUND)
+                        .body(ApiResponse.error("Aucun compte trouvé avec cet email"));
+            }
+
+        } catch (Exception e) {
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
+                    .body(ApiResponse.error("Erreur lors de la réinitialisation", e.getMessage()));
         }
     }
 
     // ========== MÉTHODES UTILITAIRES ==========
 
-    /**
-     * Générer un mot de passe temporaire
-     */
     private String genererMotDePasseTemporaire() {
         return "Temp" + UUID.randomUUID().toString().substring(0, 8);
     }
 
-    /**
-     * Obtenir le message selon le statut de l'utilisateur
-     */
     private String getMessageStatut(StatutUtilisateur statut) {
         switch (statut) {
             case EN_ATTENTE:
-                return "Votre compte est en attente de validation. Vous recevrez un email une fois validé.";
+                return "Votre compte est en attente de validation";
             case REFUSE:
-                return "Votre compte a été refusé. Contactez l'administration pour plus d'informations.";
+                return "Votre compte a été refusé";
             case SUSPENDU:
-                return "Votre compte est temporairement suspendu. Contactez l'administration.";
+                return "Votre compte est suspendu";
             case INACTIF:
-                return "Votre compte est inactif. Contactez l'administration pour le réactiver.";
+                return "Votre compte est inactif";
             default:
-                return "Votre compte n'est pas actif.";
+                return "Votre compte n'est pas actif";
         }
     }
 }

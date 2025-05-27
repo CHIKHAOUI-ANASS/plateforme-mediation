@@ -31,7 +31,7 @@ public interface DonRepository extends JpaRepository<Don, Long> {
     List<Don> findByAnonymeTrue();
 
     // Dons avec message
-    @Query("SELECT d FROM Don d WHERE d.message IS NOT NULL AND d.message != ''")
+    @Query("SELECT d FROM Don d WHERE d.message IS NOT NULL AND d.message <> ''")
     List<Don> findDonsWithMessage();
 
     // Dons par période

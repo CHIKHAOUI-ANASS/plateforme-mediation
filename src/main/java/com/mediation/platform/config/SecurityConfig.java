@@ -19,24 +19,46 @@ import java.util.Arrays;
 public class SecurityConfig {
 
     @Bean
-    public PasswordEncoder passwordEncoder() {
-        return new BCryptPasswordEncoder();
-    }
-
-    @Bean
     public SecurityFilterChain filterChain(HttpSecurity http) throws Exception {
         http
-                .cors(cors -> cors.configurationSource(corsConfigurationSource()))
+                // Désactiver CSRF pour les APIs REST
                 .csrf(csrf -> csrf.disable())
-                .sessionManagement(session -> session.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
-                .authorizeHttpRequests(auth -> auth
+
+                // Configuration CORS
+                .cors(cors -> cors.configurationSource(corsConfigurationSource()))
+
+                // Configuration des autorisations
+                .authorizeHttpRequests(authz -> authz
+                        // Endpoints publics (accessibles sans authentification)
+                        .requestMatchers("/auth/**").permitAll()
                         .requestMatchers("/api/auth/**").permitAll()
                         .requestMatchers("/api/public/**").permitAll()
-                        .requestMatchers("/api/admin/**").hasRole("ADMIN")
-                        .requestMatchers("/api/associations/**").hasAnyRole("ASSOCIATION", "ADMIN")
-                        .requestMatchers("/api/donateurs/**").hasAnyRole("DONATEUR", "ADMIN")
+                        .requestMatchers("/error").permitAll()
+                        .requestMatchers("/").permitAll()
+
+                        // Swagger/OpenAPI (quand vous l'ajouterez)
+                        .requestMatchers("/swagger-ui/**").permitAll()
+                        .requestMatchers("/v3/api-docs/**").permitAll()
+                        .requestMatchers("/swagger-ui.html").permitAll()
+                        .requestMatchers("/api-docs/**").permitAll()
+
+                        // Actuator endpoints (si ajoutés)
+                        .requestMatchers("/actuator/**").permitAll()
+
+                        // Tous les autres endpoints nécessitent une authentification
                         .anyRequest().authenticated()
-                );
+                )
+
+                // Configuration de session
+                .sessionManagement(session -> session
+                        .sessionCreationPolicy(SessionCreationPolicy.STATELESS)
+                )
+
+                // Désactiver l'authentification HTTP Basic par défaut
+                .httpBasic(httpBasic -> httpBasic.disable())
+
+                // Désactiver le formulaire de login par défaut
+                .formLogin(form -> form.disable());
 
         return http.build();
     }
@@ -44,14 +66,30 @@ public class SecurityConfig {
     @Bean
     public CorsConfigurationSource corsConfigurationSource() {
         CorsConfiguration configuration = new CorsConfiguration();
+
+        // Origines autorisées (pour le développement)
         configuration.setAllowedOriginPatterns(Arrays.asList("*"));
-        configuration.setAllowedMethods(Arrays.asList("GET", "POST", "PUT", "DELETE", "OPTIONS"));
+
+        // Méthodes HTTP autorisées
+        configuration.setAllowedMethods(Arrays.asList("GET", "POST", "PUT", "DELETE", "PATCH", "OPTIONS"));
+
+        // Headers autorisés
         configuration.setAllowedHeaders(Arrays.asList("*"));
+
+        // Permettre les credentials
         configuration.setAllowCredentials(true);
 
+        // Exposer les headers de réponse
+        configuration.setExposedHeaders(Arrays.asList("Authorization", "Cache-Control", "Content-Type"));
+
         UrlBasedCorsConfigurationSource source = new UrlBasedCorsConfigurationSource();
-        source.registerCorsConfiguration("/api/**", configuration);
+        source.registerCorsConfiguration("/**", configuration);
+
         return source;
     }
-}
 
+    @Bean
+    public PasswordEncoder passwordEncoder() {
+        return new BCryptPasswordEncoder();
+    }
+}
