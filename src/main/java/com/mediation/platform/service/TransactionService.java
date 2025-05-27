@@ -9,9 +9,9 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
-import java.math.BigDecimal;
 import java.time.LocalDateTime;
 import java.util.List;
+import java.util.Optional;
 import java.util.UUID;
 
 @Service
@@ -33,18 +33,17 @@ public class TransactionService {
                 .orElseThrow(() -> new ResourceNotFoundException("Transaction non trouvée avec l'ID: " + id));
     }
 
-    public Transaction findByReference(String reference) {
-        return transactionRepository.findByReferenceTransaction(reference)
-                .orElseThrow(() -> new ResourceNotFoundException("Transaction non trouvée avec la référence: " + reference));
+    public Optional<Transaction> findByReference(String reference) {
+        return transactionRepository.findByReferenceExterne(reference);
     }
 
     public Transaction creerTransaction(Don don) {
         Transaction transaction = new Transaction();
         transaction.setDon(don);
         transaction.setMontant(don.getMontant());
-        transaction.setReferenceTransaction(genererReferenceUnique());
+        transaction.setReferenceExterne(genererReferenceUnique());
         transaction.setStatut(StatutTransaction.EN_ATTENTE);
-        transaction.setDateTransaction(LocalDateTime.now());
+        transaction.setModePayment("PayPal");
 
         return transactionRepository.save(transaction);
     }
@@ -52,56 +51,75 @@ public class TransactionService {
     public Transaction update(Long id, Transaction transaction) {
         Transaction existingTransaction = findById(id);
         existingTransaction.setStatut(transaction.getStatut());
-        existingTransaction.setReferencePayPal(transaction.getReferencePayPal());
+        existingTransaction.setReferenceExterne(transaction.getReferenceExterne());
+        existingTransaction.setDetails(transaction.getDetails());
+        existingTransaction.setMessageErreur(transaction.getMessageErreur());
         return transactionRepository.save(existingTransaction);
-    }
-
-    public List<Transaction> findByDon(Long donId) {
-        return transactionRepository.findByDonId(donId);
     }
 
     public List<Transaction> findByStatut(StatutTransaction statut) {
         return transactionRepository.findByStatut(statut);
     }
 
+    public List<Transaction> findByModePayment(String modePayment) {
+        return transactionRepository.findByModePayment(modePayment);
+    }
+
+    public List<Transaction> findByPeriod(LocalDateTime dateDebut, LocalDateTime dateFin) {
+        return transactionRepository.findByDateTransactionBetweenOrderByDateTransactionDesc(dateDebut, dateFin);
+    }
+
+    public List<Transaction> findRecentTransactions(LocalDateTime dateDebut) {
+        return transactionRepository.findRecentTransactions(dateDebut);
+    }
+
+    public Double getTotalSuccessfulTransactions() {
+        return transactionRepository.getTotalSuccessfulTransactions();
+    }
+
+    public Double getTotalFees() {
+        return transactionRepository.getTotalFees();
+    }
+
+    public Double getSuccessRate() {
+        return transactionRepository.getSuccessRate();
+    }
+
     public Transaction marquerCommeReussie(String referenceTransaction, String referencePayPal) {
-        Transaction transaction = findByReference(referenceTransaction);
-        transaction.setStatut(StatutTransaction.REUSSIE);
-        transaction.setReferencePayPal(referencePayPal);
+        Optional<Transaction> optTransaction = findByReference(referenceTransaction);
+        if (optTransaction.isPresent()) {
+            Transaction transaction = optTransaction.get();
+            transaction.setStatut(StatutTransaction.REUSSIE);
+            transaction.setDetails("Paiement PayPal réussi: " + referencePayPal);
 
-        // Valider le don associé
-        donService.validerDon(transaction.getDon().getId());
+            // Valider le don associé
+            donService.validerDon(transaction.getDon().getIdDon());
 
-        return transactionRepository.save(transaction);
+            return transactionRepository.save(transaction);
+        }
+        throw new ResourceNotFoundException("Transaction non trouvée avec la référence: " + referenceTransaction);
     }
 
     public Transaction marquerCommeEchouee(String referenceTransaction) {
-        Transaction transaction = findByReference(referenceTransaction);
-        transaction.setStatut(StatutTransaction.ECHEC);
+        Optional<Transaction> optTransaction = findByReference(referenceTransaction);
+        if (optTransaction.isPresent()) {
+            Transaction transaction = optTransaction.get();
+            transaction.setStatut(StatutTransaction.ECHEC);
+            transaction.setMessageErreur("Paiement échoué");
 
-        // Rejeter le don associé
-        donService.rejeterDon(transaction.getDon().getId());
+            // Rejeter le don associé
+            donService.rejeterDon(transaction.getDon().getIdDon());
 
-        return transactionRepository.save(transaction);
-    }
-
-    // Méthodes simplifiées sans requêtes complexes pour commencer
-    public BigDecimal getTotalTransactionsReussies() {
-        List<Transaction> transactions = transactionRepository.findByStatut(StatutTransaction.REUSSIE);
-        return transactions.stream()
-                .map(Transaction::getMontant)
-                .reduce(BigDecimal.ZERO, BigDecimal::add);
-    }
-
-    public Long countTransactionsEchec() {
-        return (long) transactionRepository.findByStatut(StatutTransaction.ECHEC).size();
+            return transactionRepository.save(transaction);
+        }
+        throw new ResourceNotFoundException("Transaction non trouvée avec la référence: " + referenceTransaction);
     }
 
     private String genererReferenceUnique() {
         String reference;
         do {
             reference = "TXN-" + UUID.randomUUID().toString().substring(0, 8).toUpperCase();
-        } while (transactionRepository.existsByReferenceTransaction(reference));
+        } while (transactionRepository.findByReferenceExterne(reference).isPresent());
 
         return reference;
     }

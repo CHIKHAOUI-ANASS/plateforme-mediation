@@ -173,7 +173,7 @@ public class Don {
 
     public void confirmer() {
         if (this.statut == StatutDon.EN_ATTENTE) {
-            this.statut = StatutDon.CONFIRME;
+            this.statut = StatutDon.VALIDE;
 
             // Ajouter le don au projet pour mettre à jour le montant collecté
             if (this.projet != null) {
@@ -189,7 +189,7 @@ public class Don {
     }
 
     public void rembourser() {
-        if (this.statut == StatutDon.CONFIRME) {
+        if (this.statut == StatutDon.VALIDE) {
             this.statut = StatutDon.REMBOURSE;
 
             // Retirer le montant du projet si nécessaire
@@ -201,7 +201,7 @@ public class Don {
     }
 
     public boolean estConfirme() {
-        return this.statut == StatutDon.CONFIRME;
+        return this.statut == StatutDon.VALIDE;
     }
 
     public boolean estEnAttente() {
@@ -236,7 +236,7 @@ public class Don {
     }
 
     public boolean peutEtreRembourse() {
-        return this.statut == StatutDon.CONFIRME;
+        return this.statut == StatutDon.VALIDE;
     }
 
     // equals et hashCode

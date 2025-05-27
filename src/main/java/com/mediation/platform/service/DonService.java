@@ -1,6 +1,7 @@
 package com.mediation.platform.service;
 
 import com.mediation.platform.entity.Don;
+import com.mediation.platform.entity.Donateur;
 import com.mediation.platform.entity.Projet;
 import com.mediation.platform.repository.DonRepository;
 import com.mediation.platform.enums.StatutDon;
@@ -10,8 +11,7 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
-import java.math.BigDecimal;
-import java.time.LocalDateTime;
+import java.time.LocalDate;
 import java.util.List;
 
 @Service
@@ -36,14 +36,14 @@ public class DonService {
     public Don save(Don don) {
         validateDon(don);
         don.setStatut(StatutDon.EN_ATTENTE);
-        don.setDateDon(LocalDateTime.now());
         return donRepository.save(don);
     }
 
     public Don update(Long id, Don don) {
         Don existingDon = findById(id);
         existingDon.setMontant(don.getMontant());
-        existingDon.setCommentaire(don.getCommentaire());
+        existingDon.setMessage(don.getMessage());
+        existingDon.setAnonyme(don.getAnonyme());
         return donRepository.save(existingDon);
     }
 
@@ -53,32 +53,52 @@ public class DonService {
         donRepository.save(don);
     }
 
-    public List<Don> findByDonateur(Long donateurId) {
-        return donRepository.findByDonateurId(donateurId);
+    public List<Don> findByDonateur(Donateur donateur) {
+        return donRepository.findByDonateurOrderByDateDesc(donateur);
     }
 
-    public List<Don> findByProjet(Long projetId) {
-        return donRepository.findByProjetId(projetId);
+    public List<Don> findByProjet(Projet projet) {
+        return donRepository.findByProjetOrderByDateDesc(projet);
     }
 
     public List<Don> findByStatut(StatutDon statut) {
         return donRepository.findByStatut(statut);
     }
 
-    public BigDecimal getTotalDonsByProjet(Long projetId) {
-        List<Don> dons = donRepository.findByProjetId(projetId);
-        return dons.stream()
-                .filter(don -> don.getStatut() == StatutDon.VALIDE)
-                .map(Don::getMontant)
-                .reduce(BigDecimal.ZERO, BigDecimal::add);
+    public List<Don> findValidatedDons() {
+        return donRepository.findByStatutOrderByDateDesc(StatutDon.VALIDE);
     }
 
-    public BigDecimal getTotalDonsByDonateur(Long donateurId) {
-        List<Don> dons = donRepository.findByDonateurId(donateurId);
-        return dons.stream()
-                .filter(don -> don.getStatut() == StatutDon.VALIDE)
-                .map(Don::getMontant)
-                .reduce(BigDecimal.ZERO, BigDecimal::add);
+    public List<Don> findAnonymousDons() {
+        return donRepository.findByAnonymeTrue();
+    }
+
+    public List<Don> findDonsWithMessage() {
+        return donRepository.findDonsWithMessage();
+    }
+
+    public List<Don> findByPeriod(LocalDate dateDebut, LocalDate dateFin) {
+        return donRepository.findByDateBetweenOrderByDateDesc(dateDebut, dateFin);
+    }
+
+    public List<Don> findRecentDonations(LocalDate dateDebut) {
+        return donRepository.findRecentDonations(dateDebut);
+    }
+
+    public List<Don> findLargeDonations(Double montantMin) {
+        return donRepository.findLargeDonations(montantMin);
+    }
+
+    public Double getTotalConfirmedDonations() {
+        return donRepository.getTotalConfirmedDonations();
+    }
+
+    public Double getTotalForProject(Projet projet) {
+        return donRepository.getTotalForProject(projet);
+    }
+
+    public long getUniqueDonorsCount() {
+        return donRepository.getUniqueDonorsCount();
     }
 
     public Don validerDon(Long donId) {
@@ -87,8 +107,8 @@ public class DonService {
 
         // Mettre à jour le montant collecté du projet
         Projet projet = don.getProjet();
-        BigDecimal nouveauMontant = getTotalDonsByProjet(projet.getId());
-        projetService.mettreAJourMontantCollecte(projet.getId(), nouveauMontant);
+        Double nouveauMontant = getTotalForProject(projet);
+        projetService.mettreAJourMontantCollecte(projet.getIdProjet(), nouveauMontant);
 
         return donRepository.save(don);
     }
@@ -100,7 +120,7 @@ public class DonService {
     }
 
     private void validateDon(Don don) {
-        if (don.getMontant() == null || don.getMontant().compareTo(BigDecimal.ZERO) <= 0) {
+        if (don.getMontant() == null || don.getMontant() <= 0) {
             throw new IllegalArgumentException("Le montant du don doit être supérieur à 0");
         }
 
@@ -112,8 +132,8 @@ public class DonService {
             throw new IllegalArgumentException("Le projet est obligatoire");
         }
 
-        // Vérifier que le projet est actif
-        Projet projet = projetService.findById(don.getProjet().getId());
+        // Vérifier que le projet est actif (utiliser EN_COURS)
+        Projet projet = projetService.findById(don.getProjet().getIdProjet());
         if (projet.getStatut() != StatutProjet.EN_COURS) {
             throw new IllegalArgumentException("Le projet n'est plus actif pour recevoir des dons");
         }

@@ -39,7 +39,7 @@ public class Transaction {
 
     @Enumerated(EnumType.STRING)
     @Column(nullable = false)
-    private StatutTransaction statut = StatutTransaction.EN_COURS;
+    private StatutTransaction statut = StatutTransaction.EN_ATTENTE;
 
     @Column(nullable = false)
     private Double frais = 0.0;
@@ -158,7 +158,7 @@ public class Transaction {
 
     // Méthodes métier
     public boolean traiter() {
-        if (this.statut == StatutTransaction.EN_COURS) {
+        if (this.statut == StatutTransaction.EN_ATTENTE) {
             try {
                 // Logique de traitement de la transaction
                 // (intégration avec PayPal, etc.)
@@ -173,7 +173,7 @@ public class Transaction {
 
                 return true;
             } catch (Exception e) {
-                this.statut = StatutTransaction.ECHOUEE;
+                this.statut = StatutTransaction.ECHEC;
                 this.messageErreur = e.getMessage();
                 return false;
             }
@@ -182,8 +182,8 @@ public class Transaction {
     }
 
     public void annuler() {
-        if (this.statut == StatutTransaction.EN_COURS) {
-            this.statut = StatutTransaction.ANNULEE;
+        if (this.statut == StatutTransaction.EN_ATTENTE) {
+            this.statut = StatutTransaction.ANNULE;
             this.details = "Transaction annulée";
 
             // Annuler le don associé
@@ -210,15 +210,15 @@ public class Transaction {
     }
 
     public boolean estEnCours() {
-        return this.statut == StatutTransaction.EN_COURS;
+        return this.statut == StatutTransaction.EN_ATTENTE;
     }
 
     public boolean estEchouee() {
-        return this.statut == StatutTransaction.ECHOUEE;
+        return this.statut == StatutTransaction.ECHEC;
     }
 
     public boolean estAnnulee() {
-        return this.statut == StatutTransaction.ANNULEE;
+        return this.statut == StatutTransaction.ANNULE;
     }
 
     public Double getMontantNet() {
@@ -237,7 +237,7 @@ public class Transaction {
     }
 
     public boolean peutEtreAnnulee() {
-        return this.statut == StatutTransaction.EN_COURS;
+        return this.statut == StatutTransaction.EN_ATTENTE;
     }
 
     public boolean peutEtreRemboursee() {
@@ -246,13 +246,13 @@ public class Transaction {
 
     public String getStatutAffiche() {
         switch (this.statut) {
-            case EN_COURS:
+            case EN_ATTENTE:
                 return "En cours de traitement";
             case REUSSIE:
                 return "Transaction réussie";
-            case ECHOUEE:
+            case ECHEC:
                 return "Échec de la transaction";
-            case ANNULEE:
+            case ANNULE:
                 return "Transaction annulée";
             default:
                 return "Statut inconnu";

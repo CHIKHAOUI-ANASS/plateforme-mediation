@@ -31,7 +31,7 @@ public class PaymentService {
 
             // Pour l'instant, on retourne juste la référence
             // L'intégration PayPal complète sera ajoutée plus tard
-            return transaction.getReferenceTransaction();
+            return transaction.getReferenceExterne();
 
         } catch (Exception e) {
             throw new RuntimeException("Erreur lors de la création du paiement PayPal", e);
@@ -59,5 +59,31 @@ public class PaymentService {
         config.put("clientId", paypalClientId);
         config.put("mode", paypalMode);
         return config;
+    }
+
+    // Calculer les frais de transaction
+    public Double calculerFrais(Double montant) {
+        // Frais PayPal standard: 2.9% + 0.30 DH
+        return (montant * 0.029) + 0.30;
+    }
+
+    // Obtenir le montant net après frais
+    public Double getMontantNet(Double montantBrut) {
+        return montantBrut - calculerFrais(montantBrut);
+    }
+
+    // Vérifier si le paiement est supporté
+    public boolean isPaiementSupporte(String modePaiement) {
+        return "PayPal".equalsIgnoreCase(modePaiement) ||
+                "CB".equalsIgnoreCase(modePaiement);
+    }
+
+    // Générer URL de paiement PayPal (simulation)
+    public String genererUrlPaiement(String referenceTransaction) {
+        if ("sandbox".equals(paypalMode)) {
+            return "https://www.sandbox.paypal.com/cgi-bin/webscr?cmd=_express-checkout&token=" + referenceTransaction;
+        } else {
+            return "https://www.paypal.com/cgi-bin/webscr?cmd=_express-checkout&token=" + referenceTransaction;
+        }
     }
 }

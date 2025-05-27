@@ -50,7 +50,7 @@ public class Projet {
 
     @Enumerated(EnumType.STRING)
     @Column(nullable = false)
-    private StatutProjet statut = StatutProjet.ACTIF;
+    private StatutProjet statut = StatutProjet.EN_COURS;
 
     @Size(max = 50, message = "La priorité ne peut dépasser 50 caractères")
     @Column(length = 50)
@@ -220,7 +220,7 @@ public class Projet {
 
     // Méthodes métier
     public void ajouterProjet() {
-        this.statut = StatutProjet.ACTIF;
+        this.statut = StatutProjet.EN_COURS;
         this.dateDebut = LocalDate.now();
     }
 
@@ -236,9 +236,6 @@ public class Projet {
         }
     }
 
-    public void archiverProjet() {
-        this.statut = StatutProjet.ARCHIVE;
-    }
 
     public Double calculerProgres() {
         if (montantDemande == null || montantDemande == 0) {
@@ -248,7 +245,7 @@ public class Projet {
     }
 
     public void ajouterDon(Don don) {
-        if (don != null && this.statut == StatutProjet.ACTIF) {
+        if (don != null && this.statut == StatutProjet.EN_COURS) {
             this.dons.add(don);
             this.montantCollecte += don.getMontant();
 
@@ -260,7 +257,7 @@ public class Projet {
     }
 
     public boolean estActif() {
-        return this.statut == StatutProjet.ACTIF;
+        return this.statut == StatutProjet.EN_COURS;
     }
 
     public boolean estTermine() {

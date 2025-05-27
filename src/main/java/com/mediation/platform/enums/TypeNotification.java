@@ -14,6 +14,9 @@ public enum TypeNotification {
     SECURITE("Sécurité"),
     SYSTEME("Système");
 
+
+
+
     private final String libelle;
 
     TypeNotification(String libelle) {
