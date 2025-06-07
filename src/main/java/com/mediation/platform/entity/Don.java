@@ -1,7 +1,6 @@
 package com.mediation.platform.entity;
 
-
-
+import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import com.mediation.platform.enums.StatutDon;
 import jakarta.persistence.*;
 import jakarta.validation.constraints.DecimalMin;
@@ -15,6 +14,7 @@ import java.util.Objects;
 
 @Entity
 @Table(name = "dons")
+@JsonIgnoreProperties({"hibernateLazyInitializer", "handler"})
 public class Don {
 
     @Id
@@ -45,16 +45,19 @@ public class Don {
     @Column(updatable = false)
     private LocalDateTime dateCreation;
 
-    // Relations
+    // Relations - CORRECTION: Gestion des références circulaires
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "id_donateur", nullable = false)
+    @JsonIgnoreProperties({"dons", "motDePasse", "adresse", "dateNaissance", "profession"})
     private Donateur donateur;
 
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "id_projet", nullable = false)
+    @JsonIgnoreProperties({"dons", "association.projets", "association.motDePasse"})
     private Projet projet;
 
     @OneToOne(mappedBy = "don", cascade = CascadeType.ALL, fetch = FetchType.LAZY)
+    @JsonIgnoreProperties({"don"})
     private Transaction transaction;
 
     // Constructeurs
@@ -165,6 +168,28 @@ public class Don {
         this.transaction = transaction;
     }
 
+    // AJOUT: Méthodes pour exposer des informations dérivées sans les relations complètes
+    public String getNomProjet() {
+        return projet != null ? projet.getTitre() : null;
+    }
+
+    public String getNomAssociation() {
+        return projet != null && projet.getAssociation() != null ?
+                projet.getAssociation().getNomAssociation() : null;
+    }
+
+    public Long getIdProjet() {
+        return projet != null ? projet.getIdProjet() : null;
+    }
+
+    public Long getIdDonateur() {
+        return donateur != null ? donateur.getIdUtilisateur() : null;
+    }
+
+    public String getNomDonateurComplet() {
+        return donateur != null ? donateur.getNomComplet() : null;
+    }
+
     // Méthodes métier
     public void enregistrer() {
         this.statut = StatutDon.EN_ATTENTE;
@@ -216,11 +241,17 @@ public class Don {
         return this.statut == StatutDon.REMBOURSE;
     }
 
+    public boolean estRefuse() {
+        return this.statut == StatutDon.REFUSE;
+    }
+
     public String getNomDonateurAffiche() {
         if (anonyme) {
             return "Donateur anonyme";
-        } else {
+        } else if (donateur != null) {
             return donateur.getPrenom() + " " + donateur.getNom();
+        } else {
+            return "Donateur inconnu";
         }
     }
 
@@ -237,6 +268,73 @@ public class Don {
 
     public boolean peutEtreRembourse() {
         return this.statut == StatutDon.VALIDE;
+    }
+
+    // AJOUT: Méthodes utilitaires pour l'API
+    public String getStatutAffichage() {
+        switch (this.statut) {
+            case EN_ATTENTE:
+                return "En attente de validation";
+            case VALIDE:
+                return "Don validé";
+            case REFUSE:
+                return "Don refusé";
+            case ANNULE:
+                return "Don annulé";
+            case REMBOURSE:
+                return "Don remboursé";
+            default:
+                return "Statut inconnu";
+        }
+    }
+
+    public String getCouleurStatut() {
+        switch (this.statut) {
+            case VALIDE:
+                return "success";
+            case REFUSE:
+            case ANNULE:
+                return "danger";
+            case REMBOURSE:
+                return "warning";
+            case EN_ATTENTE:
+                return "info";
+            default:
+                return "secondary";
+        }
+    }
+
+    public boolean estRecent() {
+        if (date == null) return false;
+        return date.isAfter(LocalDate.now().minusDays(7));
+    }
+
+    public String getIconeStatut() {
+        switch (this.statut) {
+            case VALIDE:
+                return "✅";
+            case REFUSE:
+                return "❌";
+            case ANNULE:
+                return "🚫";
+            case REMBOURSE:
+                return "💰";
+            case EN_ATTENTE:
+                return "⏳";
+            default:
+                return "❓";
+        }
+    }
+
+    // AJOUT: Informations pour les notifications
+    public String getDescriptionCourte() {
+        return String.format("Don de %.2f DH pour '%s'",
+                montant,
+                projet != null ? projet.getTitre() : "projet inconnu");
+    }
+
+    public boolean necessiteValidation() {
+        return this.statut == StatutDon.EN_ATTENTE;
     }
 
     // equals et hashCode

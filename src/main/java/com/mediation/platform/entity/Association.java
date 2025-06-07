@@ -1,12 +1,11 @@
 package com.mediation.platform.entity;
 
-
-
+import com.fasterxml.jackson.annotation.JsonIgnore;
+import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import com.mediation.platform.enums.RoleUtilisateur;
 import jakarta.persistence.*;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.Size;
-
 
 import java.time.LocalDateTime;
 import java.util.ArrayList;
@@ -15,6 +14,7 @@ import java.util.List;
 @Entity
 @Table(name = "associations")
 @PrimaryKeyJoinColumn(name = "id_utilisateur")
+@JsonIgnoreProperties({"hibernateLazyInitializer", "handler"})
 public class Association extends Utilisateur {
 
     @NotBlank(message = "Le nom de l'association est obligatoire")
@@ -25,7 +25,6 @@ public class Association extends Utilisateur {
     @Size(max = 500, message = "L'adresse ne peut dépasser 500 caractères")
     @Column(length = 500)
     private String adresse;
-
 
     @Size(max = 255, message = "L'URL du site web ne peut dépasser 255 caractères")
     @Column(length = 255)
@@ -47,8 +46,9 @@ public class Association extends Utilisateur {
 
     private LocalDateTime dateValidation;
 
-    // Relations
+    // Relations - CORRECTION: Ajout de @JsonIgnore pour éviter les boucles infinies
     @OneToMany(mappedBy = "association", cascade = CascadeType.ALL, fetch = FetchType.LAZY)
+    @JsonIgnore
     private List<Projet> projets = new ArrayList<>();
 
     // Constructeurs
@@ -147,6 +147,25 @@ public class Association extends Utilisateur {
         this.projets = projets;
     }
 
+    // AJOUT: Méthodes pour obtenir des informations dérivées sans exposer toute la liste
+    public int getNombreProjets() {
+        return projets != null ? projets.size() : 0;
+    }
+
+    public int getNombreProjetsActifs() {
+        if (projets == null) return 0;
+        return (int) projets.stream()
+                .filter(p -> p.getStatut().name().equals("EN_COURS"))
+                .count();
+    }
+
+    public int getNombreProjetsTermines() {
+        if (projets == null) return 0;
+        return (int) projets.stream()
+                .filter(p -> p.getStatut().name().equals("TERMINE"))
+                .count();
+    }
+
     // Méthodes métier
     public Projet ajouterProjet(String titre, String description, Double montantDemande) {
         if (titre == null || titre.trim().isEmpty()) {
@@ -204,6 +223,21 @@ public class Association extends Utilisateur {
                 .sum();
     }
 
+    // OVERRIDE: Utiliser le nom de l'association pour l'affichage
+    @Override
+    public String getNomAffichage() {
+        return this.nomAssociation != null ? this.nomAssociation : this.getNomComplet();
+    }
+
+    // AJOUT: Méthodes utilitaires pour l'API
+    public boolean peutCreerProjet() {
+        return this.estValidee() && this.estActif();
+    }
+
+    public boolean peutRecevoirDons() {
+        return this.estValidee() && this.estActif();
+    }
+
     // toString
     @Override
     public String toString() {
@@ -213,7 +247,7 @@ public class Association extends Utilisateur {
                 ", email='" + getEmail() + '\'' +
                 ", domaineActivite='" + domaineActivite + '\'' +
                 ", statutValidation=" + statutValidation +
-                ", nombreProjets=" + projets.size() +
+                ", nombreProjets=" + getNombreProjets() +
                 '}';
     }
 }

@@ -1,7 +1,6 @@
 package com.mediation.platform.entity;
 
-
-
+import com.fasterxml.jackson.annotation.JsonIgnore;
 import com.mediation.platform.enums.RoleUtilisateur;
 import com.mediation.platform.enums.StatutUtilisateur;
 import jakarta.persistence.*;
@@ -41,6 +40,7 @@ public abstract class Utilisateur {
     @NotBlank(message = "Le mot de passe est obligatoire")
     @Size(min = 6, message = "Le mot de passe doit avoir au moins 6 caractères")
     @Column(nullable = false)
+    @JsonIgnore // Pour ne pas exposer le mot de passe dans les réponses JSON
     private String motDePasse;
 
     @Size(max = 20, message = "Le téléphone ne peut dépasser 20 caractères")
@@ -53,6 +53,10 @@ public abstract class Utilisateur {
 
     @UpdateTimestamp
     private LocalDateTime dateModification;
+
+    // AJOUT: Gestion de la dernière connexion
+    @Column(name = "derniere_connexion")
+    private LocalDateTime derniereConnexion;
 
     @Enumerated(EnumType.STRING)
     @Column(nullable = false)
@@ -139,6 +143,15 @@ public abstract class Utilisateur {
         this.dateModification = dateModification;
     }
 
+    // CORRECTION: Méthode manquante ajoutée
+    public LocalDateTime getDerniereConnexion() {
+        return derniereConnexion;
+    }
+
+    public void setDerniereConnexion(LocalDateTime derniereConnexion) {
+        this.derniereConnexion = derniereConnexion;
+    }
+
     public StatutUtilisateur getStatut() {
         return statut;
     }
@@ -181,6 +194,44 @@ public abstract class Utilisateur {
         return false;
     }
 
+    // AJOUT: Méthodes utilitaires pour la gestion de connexion
+    public void marquerConnexion() {
+        this.derniereConnexion = LocalDateTime.now();
+    }
+
+    public boolean estActif() {
+        return this.statut == StatutUtilisateur.ACTIF;
+    }
+
+    public boolean estEnAttente() {
+        return this.statut == StatutUtilisateur.EN_ATTENTE;
+    }
+
+    public boolean estRefuse() {
+        return this.statut == StatutUtilisateur.REFUSE;
+    }
+
+    public boolean estSuspendu() {
+        return this.statut == StatutUtilisateur.SUSPENDU;
+    }
+
+    public String getNomComplet() {
+        return this.prenom + " " + this.nom;
+    }
+
+    // AJOUT: Méthode pour obtenir le nom d'affichage selon le rôle
+    public String getNomAffichage() {
+        switch (this.role) {
+            case ASSOCIATION:
+                // Pour les associations, on peut afficher le nom de l'association si disponible
+                return this.getNomComplet();
+            case DONATEUR:
+            case ADMINISTRATEUR:
+            default:
+                return this.getNomComplet();
+        }
+    }
+
     // equals et hashCode
     @Override
     public boolean equals(Object o) {
@@ -206,9 +257,7 @@ public abstract class Utilisateur {
                 ", email='" + email + '\'' +
                 ", role=" + role +
                 ", statut=" + statut +
+                ", derniereConnexion=" + derniereConnexion +
                 '}';
-    }
-
-    public void setDerniereConnexion(LocalDateTime now) {
     }
 }

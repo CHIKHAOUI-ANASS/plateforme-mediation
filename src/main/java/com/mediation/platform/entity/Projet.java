@@ -1,6 +1,7 @@
 package com.mediation.platform.entity;
 
-
+import com.fasterxml.jackson.annotation.JsonIgnore;
+import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import com.mediation.platform.enums.StatutProjet;
 import jakarta.persistence.*;
 import jakarta.validation.constraints.DecimalMin;
@@ -18,6 +19,7 @@ import java.util.Objects;
 
 @Entity
 @Table(name = "projets")
+@JsonIgnoreProperties({"hibernateLazyInitializer", "handler"})
 public class Projet {
 
     @Id
@@ -67,12 +69,14 @@ public class Projet {
     @UpdateTimestamp
     private LocalDateTime dateModification;
 
-    // Relations
+    // Relations - CORRECTION: Gestion des références circulaires
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "id_association", nullable = false)
+    @JsonIgnoreProperties({"projets", "motDePasse"}) // Ignore les champs qui peuvent créer des boucles
     private Association association;
 
     @OneToMany(mappedBy = "projet", cascade = CascadeType.ALL, fetch = FetchType.LAZY)
+    @JsonIgnore // Pour éviter les boucles infinies dans la sérialisation JSON
     private List<Don> dons = new ArrayList<>();
 
     // Constructeurs
@@ -218,6 +222,30 @@ public class Projet {
         this.dons = dons;
     }
 
+    // AJOUT: Méthodes pour exposer des informations dérivées sans les relations complètes
+    public String getNomAssociation() {
+        return association != null ? association.getNomAssociation() : null;
+    }
+
+    public String getDomaineActivite() {
+        return association != null ? association.getDomaineActivite() : null;
+    }
+
+    public Long getIdAssociation() {
+        return association != null ? association.getIdUtilisateur() : null;
+    }
+
+    public int getNombreDons() {
+        return dons != null ? dons.size() : 0;
+    }
+
+    public int getNombreDonsValides() {
+        if (dons == null) return 0;
+        return (int) dons.stream()
+                .filter(don -> "VALIDE".equals(don.getStatut().name()))
+                .count();
+    }
+
     // Méthodes métier
     public void ajouterProjet() {
         this.statut = StatutProjet.EN_COURS;
@@ -236,12 +264,11 @@ public class Projet {
         }
     }
 
-
     public Double calculerProgres() {
         if (montantDemande == null || montantDemande == 0) {
             return 0.0;
         }
-        return (montantCollecte / montantDemande) * 100;
+        return Math.round((montantCollecte / montantDemande) * 100 * 100.0) / 100.0; // Arrondi à 2 décimales
     }
 
     public void ajouterDon(Don don) {
@@ -280,6 +307,58 @@ public class Projet {
                 .map(Don::getDonateur)
                 .distinct()
                 .count();
+    }
+
+    // AJOUT: Méthodes utilitaires pour l'API
+    public boolean peutRecevoirDons() {
+        return this.estActif() &&
+                (this.dateFin == null || !LocalDate.now().isAfter(this.dateFin)) &&
+                this.association != null && this.association.estValidee();
+    }
+
+    public String getStatutAffichage() {
+        if (estTermine()) {
+            return "Objectif atteint";
+        } else if (estEnRetard()) {
+            return "En retard";
+        } else if (estActif()) {
+            return "En cours";
+        } else {
+            return statut.getLibelle();
+        }
+    }
+
+    public String getCouleurStatut() {
+        if (estTermine()) {
+            return "success";
+        } else if (estEnRetard()) {
+            return "danger";
+        } else if (estActif()) {
+            return "primary";
+        } else {
+            return "secondary";
+        }
+    }
+
+    // AJOUT: Calculs de temps
+    public Long getJoursRestants() {
+        if (dateFin == null) return null;
+        LocalDate maintenant = LocalDate.now();
+        if (maintenant.isAfter(dateFin)) return 0L;
+        return dateFin.toEpochDay() - maintenant.toEpochDay();
+    }
+
+    public Double getPourcentageTempsEcoule() {
+        if (dateDebut == null || dateFin == null) return null;
+
+        LocalDate maintenant = LocalDate.now();
+        long totalJours = dateFin.toEpochDay() - dateDebut.toEpochDay();
+        long joursEcoules = maintenant.toEpochDay() - dateDebut.toEpochDay();
+
+        if (totalJours <= 0) return 100.0;
+
+        double pourcentage = (joursEcoules * 100.0) / totalJours;
+        return Math.min(100.0, Math.max(0.0, pourcentage));
     }
 
     // equals et hashCode

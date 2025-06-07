@@ -9,23 +9,37 @@ import com.mediation.platform.entity.Donateur;
 import com.mediation.platform.entity.Utilisateur;
 import com.mediation.platform.enums.StatutUtilisateur;
 import com.mediation.platform.exception.ValidationException;
+import com.mediation.platform.security.UserPrincipal;
 import com.mediation.platform.service.*;
 import jakarta.validation.Valid;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.authentication.AuthenticationManager;
+import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
+import org.springframework.security.core.Authentication;
+import org.springframework.security.core.AuthenticationException;
+import org.springframework.security.core.context.SecurityContextHolder;
+import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.web.bind.annotation.*;
 
+import java.util.Map;
 import java.util.Optional;
 import java.util.UUID;
 
 @RestController
-@RequestMapping("/auth")  // CHANGÉ: Supprimé /api
+@RequestMapping("/auth")
 @CrossOrigin(origins = "*", maxAge = 3600)
 public class AuthController {
 
     @Autowired
-    private AuthenticationService authenticationService;
+    private AuthenticationManager authenticationManager;
+
+    @Autowired
+    private JwtService jwtService;
+
+    @Autowired
+    private PasswordEncoder passwordEncoder;
 
     @Autowired
     private UtilisateurService utilisateurService;
@@ -47,11 +61,11 @@ public class AuthController {
      */
     @GetMapping("/test")
     public ResponseEntity<String> test() {
-        return ResponseEntity.ok("AuthController fonctionne !");
+        return ResponseEntity.ok("AuthController avec JWT fonctionne !");
     }
 
     /**
-     * Connexion d'un utilisateur
+     * Connexion d'un utilisateur avec JWT
      * POST /auth/login
      */
     @PostMapping("/login")
@@ -59,35 +73,98 @@ public class AuthController {
             @Valid @RequestBody LoginRequest loginRequest) {
 
         try {
-            Optional<Utilisateur> utilisateur = authenticationService.authenticate(
-                    loginRequest.getEmail(),
-                    loginRequest.getMotDePasse()
+            // Authentification avec Spring Security
+            Authentication authentication = authenticationManager.authenticate(
+                    new UsernamePasswordAuthenticationToken(
+                            loginRequest.getEmail(),
+                            loginRequest.getMotDePasse()
+                    )
             );
+
+            SecurityContextHolder.getContext().setAuthentication(authentication);
+
+            // Générer les tokens JWT
+            Map<String, Object> tokenResponse = jwtService.generateTokenResponse(authentication);
+
+            // Récupérer l'utilisateur authentifié
+            UserPrincipal userPrincipal = (UserPrincipal) authentication.getPrincipal();
+            Optional<Utilisateur> utilisateur = utilisateurService.findByEmail(userPrincipal.getEmail());
 
             if (utilisateur.isPresent()) {
                 Utilisateur user = utilisateur.get();
 
-                // Vérifier le statut de l'utilisateur
-                if (user.getStatut() != StatutUtilisateur.ACTIF) {
-                    String message = getMessageStatut(user.getStatut());
-                    return ResponseEntity.status(HttpStatus.UNAUTHORIZED)
-                            .body(ApiResponse.error(message));
-                }
+                // Mettre à jour la dernière connexion
+                user.marquerConnexion();
+                utilisateurService.save(user);
 
+                // Créer la réponse de connexion
                 LoginResponse loginResponse = authMapper.toLoginResponse(user);
+                loginResponse.setToken((String) tokenResponse.get("accessToken"));
+                loginResponse.setRefreshToken((String) tokenResponse.get("refreshToken"));
+                loginResponse.setTokenType((String) tokenResponse.get("tokenType"));
+                loginResponse.setExpiresIn((Integer) tokenResponse.get("expiresIn"));
 
                 return ResponseEntity.ok(
                         ApiResponse.success("Connexion réussie", loginResponse)
                 );
             } else {
                 return ResponseEntity.status(HttpStatus.UNAUTHORIZED)
-                        .body(ApiResponse.error("Email ou mot de passe incorrect"));
+                        .body(ApiResponse.error("Utilisateur non trouvé"));
             }
 
+        } catch (AuthenticationException e) {
+            return ResponseEntity.status(HttpStatus.UNAUTHORIZED)
+                    .body(ApiResponse.error("Email ou mot de passe incorrect"));
         } catch (Exception e) {
             return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
                     .body(ApiResponse.error("Erreur lors de la connexion", e.getMessage()));
         }
+    }
+
+    /**
+     * Renouvellement du token d'accès
+     * POST /auth/refresh
+     */
+    @PostMapping("/refresh")
+    public ResponseEntity<ApiResponse<Map<String, Object>>> refreshToken(
+            @RequestBody RefreshTokenRequest refreshTokenRequest) {
+
+        try {
+            String refreshToken = refreshTokenRequest.getRefreshToken();
+
+            if (!jwtService.validateJwtToken(refreshToken) || !jwtService.isRefreshToken(refreshToken)) {
+                return ResponseEntity.status(HttpStatus.UNAUTHORIZED)
+                        .body(ApiResponse.error("Refresh token invalide"));
+            }
+
+            String newAccessToken = jwtService.refreshAccessToken(refreshToken);
+
+            Map<String, Object> tokenResponse = Map.of(
+                    "accessToken", newAccessToken,
+                    "tokenType", "Bearer",
+                    "expiresIn", jwtService.getTimeToExpiration(newAccessToken)
+            );
+
+            return ResponseEntity.ok(
+                    ApiResponse.success("Token renouvelé avec succès", tokenResponse)
+            );
+
+        } catch (Exception e) {
+            return ResponseEntity.status(HttpStatus.UNAUTHORIZED)
+                    .body(ApiResponse.error("Erreur lors du renouvellement du token", e.getMessage()));
+        }
+    }
+
+    /**
+     * Déconnexion (côté client principalement)
+     * POST /auth/logout
+     */
+    @PostMapping("/logout")
+    public ResponseEntity<ApiResponse<String>> logout() {
+        SecurityContextHolder.clearContext();
+        return ResponseEntity.ok(
+                ApiResponse.success("Déconnexion réussie", "User logged out successfully")
+        );
     }
 
     /**
@@ -108,6 +185,7 @@ public class AuthController {
             // Convertir DTO vers entité
             Donateur donateur = authMapper.toDonateurEntity(registerRequest);
             donateur.setStatut(StatutUtilisateur.ACTIF); // Donateur actif immédiatement
+            donateur.setMotDePasse(passwordEncoder.encode(donateur.getMotDePasse()));
 
             // Sauvegarder le donateur
             Donateur savedDonateur = donateurService.save(donateur);
@@ -116,14 +194,28 @@ public class AuthController {
             try {
                 emailService.envoyerEmailBienvenue(
                         savedDonateur.getEmail(),
-                        savedDonateur.getPrenom() + " " + savedDonateur.getNom()
+                        savedDonateur.getNomComplet()
                 );
             } catch (Exception emailException) {
                 System.err.println("Erreur envoi email de bienvenue: " + emailException.getMessage());
             }
 
+            // Authentifier automatiquement l'utilisateur
+            Authentication authentication = authenticationManager.authenticate(
+                    new UsernamePasswordAuthenticationToken(
+                            registerRequest.getEmail(),
+                            registerRequest.getMotDePasse()
+                    )
+            );
+
+            Map<String, Object> tokenResponse = jwtService.generateTokenResponse(authentication);
+
             // Retourner la réponse de connexion
             LoginResponse loginResponse = authMapper.toLoginResponse(savedDonateur);
+            loginResponse.setToken((String) tokenResponse.get("accessToken"));
+            loginResponse.setRefreshToken((String) tokenResponse.get("refreshToken"));
+            loginResponse.setTokenType((String) tokenResponse.get("tokenType"));
+            loginResponse.setExpiresIn((Integer) tokenResponse.get("expiresIn"));
 
             return ResponseEntity.status(HttpStatus.CREATED)
                     .body(ApiResponse.success("Compte donateur créé avec succès", loginResponse));
@@ -155,6 +247,7 @@ public class AuthController {
             // Convertir DTO vers entité
             Association association = authMapper.toAssociationEntity(registerRequest);
             association.setStatut(StatutUtilisateur.EN_ATTENTE); // Association en attente de validation
+            association.setMotDePasse(passwordEncoder.encode(association.getMotDePasse()));
 
             // Sauvegarder l'association
             Association savedAssociation = associationService.save(association);
@@ -164,7 +257,7 @@ public class AuthController {
                 emailService.envoyerEmailPersonnalise(
                         savedAssociation.getEmail(),
                         "Demande d'association reçue",
-                        "Bonjour " + savedAssociation.getPrenom() + " " + savedAssociation.getNom() + ",\n\n" +
+                        "Bonjour " + savedAssociation.getNomComplet() + ",\n\n" +
                                 "Votre demande d'inscription pour l'association '" + savedAssociation.getNomAssociation() +
                                 "' a été reçue.\nElle sera examinée par nos équipes dans les plus brefs délais.\n\n" +
                                 "Vous recevrez un email de confirmation une fois la validation effectuée.\n\n" +
@@ -214,12 +307,12 @@ public class AuthController {
 
     /**
      * Changement de mot de passe
-     * PUT /auth/change-password/{userId}
+     * PUT /auth/change-password
      */
-    @PutMapping("/change-password/{userId}")
+    @PutMapping("/change-password")
     public ResponseEntity<ApiResponse<String>> changePassword(
-            @PathVariable Long userId,
-            @Valid @RequestBody ChangePasswordRequest changePasswordRequest) {
+            @Valid @RequestBody ChangePasswordRequest changePasswordRequest,
+            Authentication authentication) {
 
         try {
             // Vérifier que les mots de passe correspondent
@@ -228,21 +321,29 @@ public class AuthController {
                         .body(ApiResponse.error("Les mots de passe ne correspondent pas"));
             }
 
-            // Changer le mot de passe
-            boolean success = authenticationService.changerMotDePasse(
-                    userId,
-                    changePasswordRequest.getAncienMotDePasse(),
-                    changePasswordRequest.getNouveauMotDePasse()
-            );
+            UserPrincipal userPrincipal = (UserPrincipal) authentication.getPrincipal();
+            Optional<Utilisateur> utilisateurOpt = utilisateurService.findByEmail(userPrincipal.getEmail());
 
-            if (success) {
-                return ResponseEntity.ok(
-                        ApiResponse.success("Mot de passe modifié avec succès", "Changement effectué")
-                );
-            } else {
+            if (utilisateurOpt.isEmpty()) {
+                return ResponseEntity.status(HttpStatus.NOT_FOUND)
+                        .body(ApiResponse.error("Utilisateur non trouvé"));
+            }
+
+            Utilisateur utilisateur = utilisateurOpt.get();
+
+            // Vérifier l'ancien mot de passe
+            if (!passwordEncoder.matches(changePasswordRequest.getAncienMotDePasse(), utilisateur.getMotDePasse())) {
                 return ResponseEntity.status(HttpStatus.UNAUTHORIZED)
                         .body(ApiResponse.error("Ancien mot de passe incorrect"));
             }
+
+            // Changer le mot de passe
+            utilisateur.setMotDePasse(passwordEncoder.encode(changePasswordRequest.getNouveauMotDePasse()));
+            utilisateurService.save(utilisateur);
+
+            return ResponseEntity.ok(
+                    ApiResponse.success("Mot de passe modifié avec succès", "Changement effectué")
+            );
 
         } catch (Exception e) {
             return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
@@ -266,8 +367,13 @@ public class AuthController {
                 String nouveauMotDePasse = genererMotDePasseTemporaire();
 
                 // Réinitialiser le mot de passe
-                authenticationService.resetMotDePasse(
-                        resetPasswordRequest.getEmail(),
+                Utilisateur user = utilisateur.get();
+                user.setMotDePasse(passwordEncoder.encode(nouveauMotDePasse));
+                utilisateurService.save(user);
+
+                // Envoyer email avec le nouveau mot de passe
+                emailService.envoyerEmailResetMotDePasse(
+                        user.getEmail(),
                         nouveauMotDePasse
                 );
 
@@ -282,6 +388,59 @@ public class AuthController {
         } catch (Exception e) {
             return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
                     .body(ApiResponse.error("Erreur lors de la réinitialisation", e.getMessage()));
+        }
+    }
+
+    /**
+     * Vérification du token JWT
+     * GET /auth/verify
+     */
+    @GetMapping("/verify")
+    public ResponseEntity<ApiResponse<Map<String, Object>>> verifyToken(Authentication authentication) {
+        try {
+            UserPrincipal userPrincipal = (UserPrincipal) authentication.getPrincipal();
+
+            Map<String, Object> userInfo = Map.of(
+                    "id", userPrincipal.getId(),
+                    "email", userPrincipal.getEmail(),
+                    "nom", userPrincipal.getNom(),
+                    "prenom", userPrincipal.getPrenom(),
+                    "nomComplet", userPrincipal.getNomComplet(),
+                    "authorities", userPrincipal.getAuthorities()
+            );
+
+            return ResponseEntity.ok(
+                    ApiResponse.success("Token valide", userInfo)
+            );
+        } catch (Exception e) {
+            return ResponseEntity.status(HttpStatus.UNAUTHORIZED)
+                    .body(ApiResponse.error("Token invalide"));
+        }
+    }
+
+    /**
+     * Informations sur le token
+     * GET /auth/token-info
+     */
+    @GetMapping("/token-info")
+    public ResponseEntity<ApiResponse<Map<String, Object>>> getTokenInfo(
+            @RequestHeader("Authorization") String authHeader) {
+
+        try {
+            if (authHeader != null && authHeader.startsWith("Bearer ")) {
+                String token = authHeader.substring(7);
+                Map<String, Object> tokenInfo = jwtService.getTokenInfo(token);
+
+                return ResponseEntity.ok(
+                        ApiResponse.success("Informations du token", tokenInfo)
+                );
+            } else {
+                return ResponseEntity.badRequest()
+                        .body(ApiResponse.error("Token manquant ou format invalide"));
+            }
+        } catch (Exception e) {
+            return ResponseEntity.status(HttpStatus.UNAUTHORIZED)
+                    .body(ApiResponse.error("Token invalide", e.getMessage()));
         }
     }
 
