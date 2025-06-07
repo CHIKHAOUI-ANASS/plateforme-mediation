@@ -11,28 +11,32 @@ import com.mediation.platform.entity.Utilisateur;
 import com.mediation.platform.enums.StatutUtilisateur;
 import com.mediation.platform.exception.AuthenticationException;
 import com.mediation.platform.exception.BusinessException;
+import com.mediation.platform.exception.ResourceNotFoundException;
 import com.mediation.platform.repository.UtilisateurRepository;
 import com.mediation.platform.security.JwtUtil;
+import com.mediation.platform.security.UserDetailsImpl;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.security.authentication.AuthenticationManager;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 import org.springframework.security.core.Authentication;
+import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDateTime;
 import java.util.Optional;
+import java.util.UUID;
 
 @Service
 @Transactional
 public class AuthenticationService {
 
     @Autowired
-    private UtilisateurRepository utilisateurRepository;
+    private AuthenticationManager authenticationManager;
 
     @Autowired
-    private AuthenticationManager authenticationManager;
+    private UtilisateurRepository utilisateurRepository;
 
     @Autowired
     private PasswordEncoder passwordEncoder;
@@ -46,25 +50,30 @@ public class AuthenticationService {
     @Autowired
     private EmailService emailService;
 
+    @Autowired
+    private NotificationService notificationService;
+
     /**
-     * Connexion utilisateur
+     * Authentification d'un utilisateur
      */
     public LoginResponse login(LoginRequest loginRequest) {
         try {
-            // Vérifier si l'utilisateur existe
-            Optional<Utilisateur> utilisateurOpt = utilisateurRepository.findByEmail(loginRequest.getEmail());
-            if (utilisateurOpt.isEmpty()) {
-                throw new AuthenticationException("Email ou mot de passe incorrect");
+            // Vérifier que l'utilisateur existe
+            Utilisateur utilisateur = utilisateurRepository.findByEmail(loginRequest.getEmail())
+                    .orElseThrow(() -> new AuthenticationException("Email ou mot de passe incorrect"));
+
+            // Vérifier le statut du compte
+            if (utilisateur.getStatut() == StatutUtilisateur.SUSPENDU) {
+                throw new AuthenticationException("Votre compte a été suspendu");
+            }
+            if (utilisateur.getStatut() == StatutUtilisateur.REFUSE) {
+                throw new AuthenticationException("Votre compte a été refusé");
+            }
+            if (utilisateur.getStatut() == StatutUtilisateur.EN_ATTENTE) {
+                throw new AuthenticationException("Votre compte est en attente de validation");
             }
 
-            Utilisateur utilisateur = utilisateurOpt.get();
-
-            // Vérifier le statut de l'utilisateur
-            if (!utilisateur.estActif()) {
-                throw new AuthenticationException("Compte non activé ou suspendu");
-            }
-
-            // Authentifier l'utilisateur
+            // Authentifier avec Spring Security
             Authentication authentication = authenticationManager.authenticate(
                     new UsernamePasswordAuthenticationToken(
                             loginRequest.getEmail(),
@@ -72,47 +81,45 @@ public class AuthenticationService {
                     )
             );
 
+            SecurityContextHolder.getContext().setAuthentication(authentication);
+            UserDetailsImpl userDetails = (UserDetailsImpl) authentication.getPrincipal();
+
             // Générer les tokens JWT
             String accessToken = jwtUtil.generateToken(
-                    utilisateur.getEmail(),
-                    utilisateur.getRole().name(),
-                    utilisateur.getIdUtilisateur()
+                    userDetails.getUsername(),
+                    userDetails.getRole(),
+                    userDetails.getId()
             );
-
-            String refreshToken = jwtUtil.generateRefreshToken(utilisateur.getEmail());
+            String refreshToken = jwtUtil.generateRefreshToken(userDetails.getUsername());
 
             // Mettre à jour la dernière connexion
-            utilisateur.setDerniereConnexion(LocalDateTime.now());
+            utilisateur.marquerConnexion();
             utilisateurRepository.save(utilisateur);
 
             // Créer la réponse
-            LoginResponse response = authMapper.toLoginResponse(utilisateur);
-            response.setToken(accessToken);
-            // Note: Le refreshToken pourrait être ajouté plus tard
+            LoginResponse loginResponse = authMapper.toLoginResponse(utilisateur);
+            loginResponse.setToken(accessToken);
+            loginResponse.setDerniereConnexion(utilisateur.getDerniereConnexion());
 
-            return response;
+            return loginResponse;
 
         } catch (Exception e) {
-            throw new AuthenticationException("Email ou mot de passe incorrect");
+            throw new AuthenticationException("Échec de l'authentification: " + e.getMessage());
         }
     }
 
     /**
-     * Inscription donateur
+     * Inscription d'un donateur
      */
     public Utilisateur registerDonateur(RegisterDonateurRequest request) {
         // Vérifier si l'email existe déjà
-        if (utilisateurRepository.existsByEmail(request.getEmail())) {
-            throw new BusinessException("Un compte avec cet email existe déjà");
+        if (emailExists(request.getEmail())) {
+            throw new BusinessException("Cet email est déjà utilisé");
         }
 
         // Créer le donateur
         Donateur donateur = authMapper.toDonateurEntity(request);
-
-        // Encoder le mot de passe
         donateur.setMotDePasse(passwordEncoder.encode(request.getMotDePasse()));
-
-        // Définir le statut initial
         donateur.setStatut(StatutUtilisateur.ACTIF); // Les donateurs sont activés directement
 
         // Sauvegarder
@@ -120,35 +127,28 @@ public class AuthenticationService {
 
         // Envoyer email de bienvenue
         try {
-            emailService.envoyerEmailBienvenue(
-                    savedDonateur.getEmail(),
-                    savedDonateur.getNomComplet()
-            );
+            emailService.envoyerEmailBienvenue(savedDonateur);
         } catch (Exception e) {
-            // Ne pas faire échouer l'inscription si l'email échoue
-            System.err.println("Erreur envoi email de bienvenue: " + e.getMessage());
+            // Log l'erreur mais ne pas faire échouer l'inscription
+            System.err.println("Erreur envoi email: " + e.getMessage());
         }
 
         return savedDonateur;
     }
 
     /**
-     * Inscription association
+     * Inscription d'une association
      */
     public Utilisateur registerAssociation(RegisterAssociationRequest request) {
         // Vérifier si l'email existe déjà
-        if (utilisateurRepository.existsByEmail(request.getEmail())) {
-            throw new BusinessException("Un compte avec cet email existe déjà");
+        if (emailExists(request.getEmail())) {
+            throw new BusinessException("Cet email est déjà utilisé");
         }
 
         // Créer l'association
         Association association = authMapper.toAssociationEntity(request);
-
-        // Encoder le mot de passe
         association.setMotDePasse(passwordEncoder.encode(request.getMotDePasse()));
-
-        // Définir le statut initial (en attente de validation)
-        association.setStatut(StatutUtilisateur.EN_ATTENTE);
+        association.setStatut(StatutUtilisateur.EN_ATTENTE); // En attente de validation
         association.setStatutValidation(false);
 
         // Sauvegarder
@@ -156,15 +156,73 @@ public class AuthenticationService {
 
         // Envoyer email de confirmation
         try {
-            emailService.envoyerEmailBienvenue(
-                    savedAssociation.getEmail(),
-                    savedAssociation.getNomComplet()
-            );
+            emailService.envoyerEmailConfirmationInscription(savedAssociation);
         } catch (Exception e) {
-            System.err.println("Erreur envoi email de bienvenue: " + e.getMessage());
+            System.err.println("Erreur envoi email: " + e.getMessage());
+        }
+
+        // Notifier les administrateurs
+        try {
+            notificationService.notifierNouvelleAssociation(savedAssociation);
+        } catch (Exception e) {
+            System.err.println("Erreur notification admin: " + e.getMessage());
         }
 
         return savedAssociation;
+    }
+
+    /**
+     * Rafraîchir le token
+     */
+    public LoginResponse refreshToken(String refreshToken) {
+        try {
+            if (!jwtUtil.validateToken(refreshToken) || !jwtUtil.isRefreshToken(refreshToken)) {
+                throw new AuthenticationException("Token de rafraîchissement invalide");
+            }
+
+            String username = jwtUtil.extractUsername(refreshToken);
+            Utilisateur utilisateur = utilisateurRepository.findByEmail(username)
+                    .orElseThrow(() -> new AuthenticationException("Utilisateur non trouvé"));
+
+            // Générer un nouveau token d'accès
+            String newAccessToken = jwtUtil.generateToken(
+                    utilisateur.getEmail(),
+                    utilisateur.getRole().name(),
+                    utilisateur.getIdUtilisateur()
+            );
+
+            LoginResponse loginResponse = authMapper.toLoginResponse(utilisateur);
+            loginResponse.setToken(newAccessToken);
+
+            return loginResponse;
+
+        } catch (Exception e) {
+            throw new AuthenticationException("Erreur lors du rafraîchissement du token");
+        }
+    }
+
+    /**
+     * Déconnexion
+     */
+    public void logout(String token) {
+        // Dans une implémentation complète, on pourrait ajouter le token à une blacklist
+        // Pour l'instant, on se contente de vider le contexte de sécurité
+        SecurityContextHolder.clearContext();
+    }
+
+    /**
+     * Obtenir l'utilisateur connecté
+     */
+    public Utilisateur getCurrentUser(String authHeader) {
+        if (authHeader == null || !authHeader.startsWith("Bearer ")) {
+            throw new AuthenticationException("Token d'authentification manquant");
+        }
+
+        String token = authHeader.substring(7);
+        String username = jwtUtil.extractUsername(token);
+
+        return utilisateurRepository.findByEmail(username)
+                .orElseThrow(() -> new AuthenticationException("Utilisateur non trouvé"));
     }
 
     /**
@@ -177,14 +235,9 @@ public class AuthenticationService {
     /**
      * Changer le mot de passe
      */
-    public boolean changerMotDePasse(Long utilisateurId, String ancienMotDePasse, String nouveauMotDePasse) {
-        Optional<Utilisateur> utilisateurOpt = utilisateurRepository.findById(utilisateurId);
-
-        if (utilisateurOpt.isEmpty()) {
-            return false;
-        }
-
-        Utilisateur utilisateur = utilisateurOpt.get();
+    public boolean changerMotDePasse(Long userId, String ancienMotDePasse, String nouveauMotDePasse) {
+        Utilisateur utilisateur = utilisateurRepository.findById(userId)
+                .orElseThrow(() -> new ResourceNotFoundException("Utilisateur non trouvé"));
 
         // Vérifier l'ancien mot de passe
         if (!passwordEncoder.matches(ancienMotDePasse, utilisateur.getMotDePasse())) {
@@ -193,7 +246,6 @@ public class AuthenticationService {
 
         // Changer le mot de passe
         utilisateur.setMotDePasse(passwordEncoder.encode(nouveauMotDePasse));
-        utilisateur.setDateModification(LocalDateTime.now());
         utilisateurRepository.save(utilisateur);
 
         return true;
@@ -203,176 +255,71 @@ public class AuthenticationService {
      * Réinitialiser le mot de passe
      */
     public void resetMotDePasse(String email) {
-        Optional<Utilisateur> utilisateurOpt = utilisateurRepository.findByEmail(email);
-
-        if (utilisateurOpt.isEmpty()) {
-            // Ne pas révéler si l'email existe ou non pour des raisons de sécurité
-            return;
-        }
-
-        Utilisateur utilisateur = utilisateurOpt.get();
+        Utilisateur utilisateur = utilisateurRepository.findByEmail(email)
+                .orElseThrow(() -> new ResourceNotFoundException("Aucun compte associé à cet email"));
 
         // Générer un nouveau mot de passe temporaire
         String nouveauMotDePasse = genererMotDePasseTemporaire();
-
-        // Mettre à jour le mot de passe
         utilisateur.setMotDePasse(passwordEncoder.encode(nouveauMotDePasse));
-        utilisateur.setDateModification(LocalDateTime.now());
         utilisateurRepository.save(utilisateur);
 
-        // Envoyer le nouveau mot de passe par email
+        // Envoyer par email
         try {
-            emailService.envoyerEmailResetMotDePasse(
-                    utilisateur.getEmail(),
-                    nouveauMotDePasse
-            );
+            emailService.envoyerNouveauMotDePasse(utilisateur, nouveauMotDePasse);
         } catch (Exception e) {
-            throw new BusinessException("Erreur lors de l'envoi de l'email de réinitialisation");
+            throw new BusinessException("Erreur lors de l'envoi de l'email");
         }
     }
 
     /**
-     * Rafraîchir le token JWT
+     * Valider un utilisateur (admin)
      */
-    public LoginResponse refreshToken(String refreshToken) {
-        try {
-            if (!jwtUtil.validateToken(refreshToken)) {
-                throw new AuthenticationException("Token de rafraîchissement invalide");
-            }
+    public void validerUtilisateur(Long userId) {
+        Utilisateur utilisateur = utilisateurRepository.findById(userId)
+                .orElseThrow(() -> new ResourceNotFoundException("Utilisateur non trouvé"));
 
-            String email = jwtUtil.extractUsername(refreshToken);
-            Optional<Utilisateur> utilisateurOpt = utilisateurRepository.findByEmail(email);
-
-            if (utilisateurOpt.isEmpty()) {
-                throw new AuthenticationException("Utilisateur non trouvé");
-            }
-
-            Utilisateur utilisateur = utilisateurOpt.get();
-
-            if (!utilisateur.estActif()) {
-                throw new AuthenticationException("Compte non actif");
-            }
-
-            // Générer un nouveau token d'accès
-            String newAccessToken = jwtUtil.generateToken(
-                    utilisateur.getEmail(),
-                    utilisateur.getRole().name(),
-                    utilisateur.getIdUtilisateur()
-            );
-
-            // Créer la réponse
-            LoginResponse response = authMapper.toLoginResponse(utilisateur);
-            response.setToken(newAccessToken);
-
-            return response;
-
-        } catch (Exception e) {
-            throw new AuthenticationException("Erreur lors du rafraîchissement du token");
-        }
-    }
-
-    /**
-     * Déconnexion (invalider le token côté client)
-     */
-    public void logout(String token) {
-        // Pour l'instant, la déconnexion se fait côté client
-        // Dans une implémentation plus avancée, on pourrait maintenir une blacklist des tokens
-        // ou utiliser Redis pour stocker les tokens valides
-    }
-
-    /**
-     * Obtenir l'utilisateur connecté à partir du token
-     */
-    public Utilisateur getCurrentUser(String token) {
-        if (token.startsWith("Bearer ")) {
-            token = token.substring(7);
-        }
-
-        if (!jwtUtil.validateToken(token)) {
-            throw new AuthenticationException("Token invalide");
-        }
-
-        String email = jwtUtil.extractUsername(token);
-        return utilisateurRepository.findByEmail(email)
-                .orElseThrow(() -> new AuthenticationException("Utilisateur non trouvé"));
-    }
-
-    /**
-     * Générer un mot de passe temporaire
-     */
-    private String genererMotDePasseTemporaire() {
-        String caracteres = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789";
-        StringBuilder motDePasse = new StringBuilder();
-
-        for (int i = 0; i < 8; i++) {
-            int index = (int) (Math.random() * caracteres.length());
-            motDePasse.append(caracteres.charAt(index));
-        }
-
-        return motDePasse.toString();
-    }
-
-    /**
-     * Valider un utilisateur (pour les associations)
-     */
-    public void validerUtilisateur(Long utilisateurId) {
-        Optional<Utilisateur> utilisateurOpt = utilisateurRepository.findById(utilisateurId);
-
-        if (utilisateurOpt.isEmpty()) {
-            throw new BusinessException("Utilisateur non trouvé");
-        }
-
-        Utilisateur utilisateur = utilisateurOpt.get();
         utilisateur.setStatut(StatutUtilisateur.ACTIF);
 
         if (utilisateur instanceof Association) {
             Association association = (Association) utilisateur;
             association.setStatutValidation(true);
             association.setDateValidation(LocalDateTime.now());
-
-            // Envoyer email de validation
-            try {
-                emailService.envoyerEmailValidationAssociation(
-                        association.getEmail(),
-                        association.getNomAssociation()
-                );
-            } catch (Exception e) {
-                System.err.println("Erreur envoi email de validation: " + e.getMessage());
-            }
         }
 
         utilisateurRepository.save(utilisateur);
+
+        // Envoyer notification
+        try {
+            emailService.envoyerEmailValidation(utilisateur);
+            notificationService.creerNotificationValidation(utilisateur);
+        } catch (Exception e) {
+            System.err.println("Erreur notification validation: " + e.getMessage());
+        }
     }
 
     /**
-     * Rejeter un utilisateur (pour les associations)
+     * Rejeter un utilisateur (admin)
      */
-    public void rejeterUtilisateur(Long utilisateurId, String motif) {
-        Optional<Utilisateur> utilisateurOpt = utilisateurRepository.findById(utilisateurId);
+    public void rejeterUtilisateur(Long userId, String motif) {
+        Utilisateur utilisateur = utilisateurRepository.findById(userId)
+                .orElseThrow(() -> new ResourceNotFoundException("Utilisateur non trouvé"));
 
-        if (utilisateurOpt.isEmpty()) {
-            throw new BusinessException("Utilisateur non trouvé");
-        }
-
-        Utilisateur utilisateur = utilisateurOpt.get();
         utilisateur.setStatut(StatutUtilisateur.REFUSE);
-
-        if (utilisateur instanceof Association) {
-            Association association = (Association) utilisateur;
-            association.setStatutValidation(false);
-
-            // Envoyer email de refus
-            try {
-                emailService.envoyerEmailRefusAssociation(
-                        association.getEmail(),
-                        association.getNomAssociation(),
-                        motif
-                );
-            } catch (Exception e) {
-                System.err.println("Erreur envoi email de refus: " + e.getMessage());
-            }
-        }
-
         utilisateurRepository.save(utilisateur);
+
+        // Envoyer notification
+        try {
+            emailService.envoyerEmailRefus(utilisateur, motif);
+            notificationService.creerNotificationRefus(utilisateur, motif);
+        } catch (Exception e) {
+            System.err.println("Erreur notification refus: " + e.getMessage());
+        }
+    }
+
+    /**
+     * Générer un mot de passe temporaire
+     */
+    private String genererMotDePasseTemporaire() {
+        return UUID.randomUUID().toString().substring(0, 12);
     }
 }

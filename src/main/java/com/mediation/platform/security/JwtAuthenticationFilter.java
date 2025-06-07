@@ -1,11 +1,11 @@
 package com.mediation.platform.security;
 
-import com.mediation.platform.service.UserDetailsServiceImpl;
 import jakarta.servlet.FilterChain;
 import jakarta.servlet.ServletException;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.lang.NonNull;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.security.core.userdetails.UserDetails;
@@ -25,47 +25,64 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
     private UserDetailsServiceImpl userDetailsService;
 
     @Override
-    protected void doFilterInternal(HttpServletRequest request,
-                                    HttpServletResponse response,
-                                    FilterChain filterChain) throws ServletException, IOException {
+    protected void doFilterInternal(
+            @NonNull HttpServletRequest request,
+            @NonNull HttpServletResponse response,
+            @NonNull FilterChain filterChain) throws ServletException, IOException {
 
-        final String requestTokenHeader = request.getHeader("Authorization");
+        final String authorizationHeader = request.getHeader("Authorization");
 
         String username = null;
-        String jwtToken = null;
+        String jwt = null;
 
-        // JWT Token est sous la forme "Bearer token"
-        if (requestTokenHeader != null && requestTokenHeader.startsWith("Bearer ")) {
-            jwtToken = requestTokenHeader.substring(7);
+        // Vérifier si le header Authorization existe et commence par "Bearer "
+        if (authorizationHeader != null && authorizationHeader.startsWith("Bearer ")) {
+            jwt = authorizationHeader.substring(7);
             try {
-                username = jwtUtil.extractUsername(jwtToken);
+                username = jwtUtil.extractUsername(jwt);
             } catch (Exception e) {
-                logger.warn("Unable to get JWT Token: " + e.getMessage());
+                // Token invalide, on continue sans authentification
+                logger.warn("Token JWT invalide: " + e.getMessage());
             }
         }
 
-        // Valider le token
+        // Si on a un username et qu'aucune authentification n'est déjà présente
         if (username != null && SecurityContextHolder.getContext().getAuthentication() == null) {
-
             UserDetails userDetails = this.userDetailsService.loadUserByUsername(username);
 
-            // Si le token est valide, configurer Spring Security pour définir l'authentification
-            if (jwtUtil.validateToken(jwtToken, userDetails)) {
-
+            // Valider le token
+            if (jwtUtil.validateToken(jwt, userDetails)) {
+                // Créer l'objet d'authentification
                 UsernamePasswordAuthenticationToken usernamePasswordAuthenticationToken =
                         new UsernamePasswordAuthenticationToken(
                                 userDetails,
                                 null,
                                 userDetails.getAuthorities()
                         );
-
                 usernamePasswordAuthenticationToken
                         .setDetails(new WebAuthenticationDetailsSource().buildDetails(request));
 
+                // Définir l'authentification dans le contexte de sécurité
                 SecurityContextHolder.getContext().setAuthentication(usernamePasswordAuthenticationToken);
             }
         }
 
         filterChain.doFilter(request, response);
+    }
+
+    @Override
+    protected boolean shouldNotFilter(HttpServletRequest request) throws ServletException {
+        String path = request.getRequestURI();
+
+        // Ne pas appliquer le filtre sur ces endpoints
+        return path.startsWith("/auth/") ||
+                path.startsWith("/test/") ||
+                path.startsWith("/h2-console") ||
+                path.startsWith("/swagger-ui") ||
+                path.startsWith("/api-docs") ||
+                path.equals("/swagger-ui.html") ||
+                path.startsWith("/v3/api-docs") ||
+                path.startsWith("/projets") && "GET".equals(request.getMethod()) ||
+                path.startsWith("/associations") && "GET".equals(request.getMethod());
     }
 }

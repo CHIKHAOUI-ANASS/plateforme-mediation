@@ -27,7 +27,7 @@ public class AuthController {
      */
     @PostMapping("/login")
     @Operation(summary = "Connexion utilisateur", description = "Authentifie un utilisateur et retourne un token JWT")
-    public ResponseEntity<ApiResponse<LoginResponse>> login(@Valid @RequestBody LoginRequest loginRequest) {
+    public ResponseEntity<?> login(@Valid @RequestBody LoginRequest loginRequest) {
         try {
             LoginResponse loginResponse = authenticationService.login(loginRequest);
             return ResponseEntity.ok(ApiResponse.success("Connexion réussie", loginResponse));
@@ -42,7 +42,7 @@ public class AuthController {
      */
     @PostMapping("/register/donateur")
     @Operation(summary = "Inscription donateur", description = "Créer un compte donateur")
-    public ResponseEntity<ApiResponse<String>> registerDonateur(@Valid @RequestBody RegisterDonateurRequest request) {
+    public ResponseEntity<?> registerDonateur(@Valid @RequestBody RegisterDonateurRequest request) {
         try {
             Utilisateur utilisateur = authenticationService.registerDonateur(request);
             return ResponseEntity.status(HttpStatus.CREATED)
@@ -59,7 +59,7 @@ public class AuthController {
      */
     @PostMapping("/register/association")
     @Operation(summary = "Inscription association", description = "Créer un compte association (en attente de validation)")
-    public ResponseEntity<ApiResponse<String>> registerAssociation(@Valid @RequestBody RegisterAssociationRequest request) {
+    public ResponseEntity<?> registerAssociation(@Valid @RequestBody RegisterAssociationRequest request) {
         try {
             Utilisateur utilisateur = authenticationService.registerAssociation(request);
             return ResponseEntity.status(HttpStatus.CREATED)
@@ -76,7 +76,7 @@ public class AuthController {
      */
     @GetMapping("/check-email")
     @Operation(summary = "Vérifier email", description = "Vérifie si un email est déjà utilisé")
-    public ResponseEntity<ApiResponse<Boolean>> checkEmail(@RequestParam String email) {
+    public ResponseEntity<?> checkEmail(@RequestParam String email) {
         try {
             boolean exists = authenticationService.emailExists(email);
             String message = exists ? "Email déjà utilisé" : "Email disponible";
@@ -92,7 +92,7 @@ public class AuthController {
      */
     @PostMapping("/change-password")
     @Operation(summary = "Changer mot de passe", description = "Permet à un utilisateur connecté de changer son mot de passe")
-    public ResponseEntity<ApiResponse<String>> changePassword(
+    public ResponseEntity<?> changePassword(
             @Valid @RequestBody ChangePasswordRequest request,
             @RequestHeader("Authorization") String token) {
         try {
@@ -129,7 +129,7 @@ public class AuthController {
      */
     @PostMapping("/reset-password")
     @Operation(summary = "Réinitialiser mot de passe", description = "Envoie un nouveau mot de passe par email")
-    public ResponseEntity<ApiResponse<String>> resetPassword(@Valid @RequestBody ResetPasswordRequest request) {
+    public ResponseEntity<?> resetPassword(@Valid @RequestBody ResetPasswordRequest request) {
         try {
             authenticationService.resetMotDePasse(request.getEmail());
             return ResponseEntity.ok(ApiResponse.success(
@@ -145,7 +145,7 @@ public class AuthController {
      */
     @PostMapping("/refresh-token")
     @Operation(summary = "Rafraîchir token", description = "Génère un nouveau token d'accès à partir d'un refresh token")
-    public ResponseEntity<ApiResponse<LoginResponse>> refreshToken(@RequestParam String refreshToken) {
+    public ResponseEntity<?> refreshToken(@RequestParam String refreshToken) {
         try {
             LoginResponse loginResponse = authenticationService.refreshToken(refreshToken);
             return ResponseEntity.ok(ApiResponse.success("Token rafraîchi avec succès", loginResponse));
@@ -160,7 +160,7 @@ public class AuthController {
      */
     @PostMapping("/logout")
     @Operation(summary = "Déconnexion", description = "Déconnecte l'utilisateur")
-    public ResponseEntity<ApiResponse<String>> logout(@RequestHeader("Authorization") String token) {
+    public ResponseEntity<?> logout(@RequestHeader("Authorization") String token) {
         try {
             authenticationService.logout(token);
             return ResponseEntity.ok(ApiResponse.success("Déconnexion réussie"));
@@ -175,7 +175,7 @@ public class AuthController {
      */
     @GetMapping("/me")
     @Operation(summary = "Profil utilisateur", description = "Retourne les informations de l'utilisateur connecté")
-    public ResponseEntity<ApiResponse<Utilisateur>> getCurrentUser(@RequestHeader("Authorization") String token) {
+    public ResponseEntity<?> getCurrentUser(@RequestHeader("Authorization") String token) {
         try {
             Utilisateur utilisateur = authenticationService.getCurrentUser(token);
             return ResponseEntity.ok(ApiResponse.success("Profil récupéré avec succès", utilisateur));
@@ -190,7 +190,7 @@ public class AuthController {
      */
     @GetMapping("/test")
     @Operation(summary = "Test", description = "Endpoint de test")
-    public ResponseEntity<ApiResponse<String>> test() {
+    public ResponseEntity<?> test() {
         return ResponseEntity.ok(ApiResponse.success("✅ AuthController fonctionne correctement!"));
     }
 
@@ -199,7 +199,7 @@ public class AuthController {
      */
     @PostMapping("/admin/validate-user/{userId}")
     @Operation(summary = "Valider utilisateur", description = "Valide un compte utilisateur (admin seulement)")
-    public ResponseEntity<ApiResponse<String>> validateUser(
+    public ResponseEntity<?> validateUser(
             @PathVariable Long userId,
             @RequestHeader("Authorization") String token) {
         try {
@@ -223,7 +223,7 @@ public class AuthController {
      */
     @PostMapping("/admin/reject-user/{userId}")
     @Operation(summary = "Rejeter utilisateur", description = "Rejette un compte utilisateur (admin seulement)")
-    public ResponseEntity<ApiResponse<String>> rejectUser(
+    public ResponseEntity<?> rejectUser(
             @PathVariable Long userId,
             @RequestParam(required = false) String motif,
             @RequestHeader("Authorization") String token) {

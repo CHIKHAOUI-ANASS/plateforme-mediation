@@ -41,7 +41,7 @@ public class DonController {
     @PostMapping
     @PreAuthorize("hasRole('DONATEUR')")
     @Operation(summary = "Créer un don", description = "Effectuer un don pour un projet")
-    public ResponseEntity<ApiResponse<Don>> creerDon(
+    public ResponseEntity<?> creerDon(
             @Valid @RequestBody CreateDonRequest donRequest,
             @RequestHeader("Authorization") String token) {
         try {
@@ -85,7 +85,7 @@ public class DonController {
     @GetMapping
     @PreAuthorize("hasRole('ADMINISTRATEUR')")
     @Operation(summary = "Liste des dons", description = "Récupère tous les dons (admin seulement)")
-    public ResponseEntity<ApiResponse<List<Don>>> getAllDons() {
+    public ResponseEntity<?> getAllDons() {
         try {
             List<Don> dons = donService.findAll();
             return ResponseEntity.ok(ApiResponse.success("Dons récupérés avec succès", dons));
@@ -100,7 +100,7 @@ public class DonController {
      */
     @GetMapping("/{id}")
     @Operation(summary = "Détails d'un don", description = "Récupère les détails d'un don spécifique")
-    public ResponseEntity<ApiResponse<Don>> getDon(
+    public ResponseEntity<?> getDon(
             @PathVariable Long id,
             @RequestHeader("Authorization") String token) {
         try {
@@ -129,7 +129,7 @@ public class DonController {
      */
     @GetMapping("/projet/{projetId}")
     @Operation(summary = "Dons par projet", description = "Récupère tous les dons d'un projet")
-    public ResponseEntity<ApiResponse<List<Don>>> getDonsByProjet(@PathVariable Long projetId) {
+    public ResponseEntity<?> getDonsByProjet(@PathVariable Long projetId) {
         try {
             Projet projet = projetService.findById(projetId);
             List<Don> dons = donService.findByProjet(projet);
@@ -146,7 +146,7 @@ public class DonController {
     @GetMapping("/statut/{statut}")
     @PreAuthorize("hasRole('ADMINISTRATEUR')")
     @Operation(summary = "Dons par statut", description = "Récupère les dons selon leur statut")
-    public ResponseEntity<ApiResponse<List<Don>>> getDonsByStatut(@PathVariable String statut) {
+    public ResponseEntity<?> getDonsByStatut(@PathVariable String statut) {
         try {
             StatutDon statutDon = StatutDon.valueOf(statut.toUpperCase());
             List<Don> dons = donService.findByStatut(statutDon);
@@ -166,7 +166,7 @@ public class DonController {
     @PostMapping("/{id}/valider")
     @PreAuthorize("hasRole('ADMINISTRATEUR')")
     @Operation(summary = "Valider un don", description = "Valide un don en attente")
-    public ResponseEntity<ApiResponse<Don>> validerDon(@PathVariable Long id) {
+    public ResponseEntity<?> validerDon(@PathVariable Long id) {
         try {
             Don don = donService.validerDon(id);
             return ResponseEntity.ok(ApiResponse.success("Don validé avec succès", don));
@@ -182,7 +182,7 @@ public class DonController {
     @PostMapping("/{id}/rejeter")
     @PreAuthorize("hasRole('ADMINISTRATEUR')")
     @Operation(summary = "Rejeter un don", description = "Rejette un don en attente")
-    public ResponseEntity<ApiResponse<Don>> rejeterDon(@PathVariable Long id) {
+    public ResponseEntity<?> rejeterDon(@PathVariable Long id) {
         try {
             Don don = donService.rejeterDon(id);
             return ResponseEntity.ok(ApiResponse.success("Don rejeté", don));
@@ -198,7 +198,7 @@ public class DonController {
     @PostMapping("/{id}/annuler")
     @PreAuthorize("hasRole('DONATEUR')")
     @Operation(summary = "Annuler un don", description = "Annule un don en attente")
-    public ResponseEntity<ApiResponse<String>> annulerDon(
+    public ResponseEntity<?> annulerDon(
             @PathVariable Long id,
             @RequestHeader("Authorization") String token) {
         try {
@@ -231,7 +231,7 @@ public class DonController {
     @GetMapping("/recents")
     @PreAuthorize("hasRole('ADMINISTRATEUR')")
     @Operation(summary = "Dons récents", description = "Dons des 7 derniers jours")
-    public ResponseEntity<ApiResponse<List<Don>>> getDonsRecents() {
+    public ResponseEntity<?> getDonsRecents() {
         try {
             java.time.LocalDate dateDebut = java.time.LocalDate.now().minusDays(7);
             List<Don> dons = donService.findRecentDonations(dateDebut);
@@ -248,7 +248,7 @@ public class DonController {
     @GetMapping("/gros-dons")
     @PreAuthorize("hasRole('ADMINISTRATEUR')")
     @Operation(summary = "Gros dons", description = "Dons supérieurs à un montant donné")
-    public ResponseEntity<ApiResponse<List<Don>>> getGrosDons(@RequestParam(defaultValue = "1000") Double montantMin) {
+    public ResponseEntity<?> getGrosDons(@RequestParam(defaultValue = "1000") Double montantMin) {
         try {
             List<Don> dons = donService.findLargeDonations(montantMin);
             return ResponseEntity.ok(ApiResponse.success("Gros dons récupérés", dons));
@@ -264,7 +264,7 @@ public class DonController {
     @GetMapping("/statistiques")
     @PreAuthorize("hasRole('ADMINISTRATEUR')")
     @Operation(summary = "Statistiques dons", description = "Statistiques globales des dons")
-    public ResponseEntity<ApiResponse<java.util.Map<String, Object>>> getStatistiquesDons() {
+    public ResponseEntity<?> getStatistiquesDons() {
         try {
             java.util.Map<String, Object> stats = new java.util.HashMap<>();
             stats.put("totalDons", donService.findAll().size());

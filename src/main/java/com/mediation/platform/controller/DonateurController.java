@@ -40,7 +40,7 @@ public class DonateurController {
     @GetMapping("/dashboard")
     @PreAuthorize("hasRole('DONATEUR')")
     @Operation(summary = "Dashboard donateur", description = "Récupère les statistiques du donateur connecté")
-    public ResponseEntity<ApiResponse<Map<String, Object>>> getDashboard(@RequestHeader("Authorization") String token) {
+    public ResponseEntity<?> getDashboard(@RequestHeader("Authorization") String token) {
         try {
             Utilisateur utilisateur = authenticationService.getCurrentUser(token);
             Donateur donateur = donateurService.findById(utilisateur.getIdUtilisateur());
@@ -67,7 +67,7 @@ public class DonateurController {
     @GetMapping("/profil")
     @PreAuthorize("hasRole('DONATEUR')")
     @Operation(summary = "Profil donateur", description = "Récupère le profil du donateur connecté")
-    public ResponseEntity<ApiResponse<Donateur>> getProfil(@RequestHeader("Authorization") String token) {
+    public ResponseEntity<?> getProfil(@RequestHeader("Authorization") String token) {
         try {
             Utilisateur utilisateur = authenticationService.getCurrentUser(token);
             Donateur donateur = donateurService.findById(utilisateur.getIdUtilisateur());
@@ -85,7 +85,7 @@ public class DonateurController {
     @PutMapping("/profil")
     @PreAuthorize("hasRole('DONATEUR')")
     @Operation(summary = "Modifier profil", description = "Modifie le profil du donateur connecté")
-    public ResponseEntity<ApiResponse<Donateur>> updateProfil(
+    public ResponseEntity<?> updateProfil(
             @RequestBody Donateur donateurData,
             @RequestHeader("Authorization") String token) {
         try {
@@ -105,7 +105,7 @@ public class DonateurController {
     @GetMapping("/dons")
     @PreAuthorize("hasRole('DONATEUR')")
     @Operation(summary = "Historique des dons", description = "Récupère l'historique des dons du donateur")
-    public ResponseEntity<ApiResponse<List<Don>>> getHistoriqueDons(@RequestHeader("Authorization") String token) {
+    public ResponseEntity<?> getHistoriqueDons(@RequestHeader("Authorization") String token) {
         try {
             Utilisateur utilisateur = authenticationService.getCurrentUser(token);
             Donateur donateur = donateurService.findById(utilisateur.getIdUtilisateur());
@@ -124,7 +124,7 @@ public class DonateurController {
     @GetMapping("/statistiques")
     @PreAuthorize("hasRole('DONATEUR')")
     @Operation(summary = "Statistiques donateur", description = "Récupère les statistiques détaillées du donateur")
-    public ResponseEntity<ApiResponse<Map<String, Object>>> getStatistiques(@RequestHeader("Authorization") String token) {
+    public ResponseEntity<?> getStatistiques(@RequestHeader("Authorization") String token) {
         try {
             Utilisateur utilisateur = authenticationService.getCurrentUser(token);
             Donateur donateur = donateurService.findById(utilisateur.getIdUtilisateur());
@@ -155,7 +155,7 @@ public class DonateurController {
     @GetMapping("/rapport")
     @PreAuthorize("hasRole('DONATEUR')")
     @Operation(summary = "Rapport personnel", description = "Génère un rapport personnalisé pour le donateur")
-    public ResponseEntity<ApiResponse<String>> genererRapport(@RequestHeader("Authorization") String token) {
+    public ResponseEntity<?> genererRapport(@RequestHeader("Authorization") String token) {
         try {
             Utilisateur utilisateur = authenticationService.getCurrentUser(token);
             Donateur donateur = donateurService.findById(utilisateur.getIdUtilisateur());

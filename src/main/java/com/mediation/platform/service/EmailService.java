@@ -1,5 +1,6 @@
 package com.mediation.platform.service;
 
+import com.mediation.platform.entity.Utilisateur;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.mail.SimpleMailMessage;
@@ -10,320 +11,311 @@ import org.springframework.stereotype.Service;
 public class EmailService {
 
     @Autowired
-    private JavaMailSender mailSender;
+    private JavaMailSender emailSender;
 
-    @Value("${app.email.from:noreply@mediation-platform.com}")
+    @Value("${app.mail.from:noreply@mediation-platform.com}")
     private String fromEmail;
 
-    /**
-     * Envoyer un email de bienvenue
-     */
-    public void envoyerEmailBienvenue(String destinataire, String nom) {
-        SimpleMailMessage message = new SimpleMailMessage();
-        message.setFrom(fromEmail);
-        message.setTo(destinataire);
-        message.setSubject("Bienvenue sur la plateforme de médiation");
-        message.setText("Bonjour " + nom + ",\n\n" +
-                "Bienvenue sur notre plateforme de médiation entre donateurs et associations caritatives.\n" +
-                "Votre compte a été créé avec succès.\n\n" +
-                "Cordialement,\nL'équipe de la plateforme");
+    @Value("${app.name:Plateforme de Médiation}")
+    private String appName;
 
-        try {
-            mailSender.send(message);
-        } catch (Exception e) {
-            System.err.println("Erreur lors de l'envoi de l'email de bienvenue: " + e.getMessage());
-        }
+    /**
+     * Envoyer email de bienvenue aux donateurs
+     */
+    public void envoyerEmailBienvenue(Utilisateur utilisateur) {
+        SimpleMailMessage message = new SimpleMailMessage();
+        message.setTo(utilisateur.getEmail());
+        message.setFrom(fromEmail);
+        message.setSubject("Bienvenue sur " + appName + " !");
+
+        String texte = String.format(
+                "Bonjour %s %s,\n\n" +
+                        "Bienvenue sur %s !\n\n" +
+                        "Votre compte donateur a été créé avec succès. Vous pouvez maintenant :\n" +
+                        "- Explorer les associations et leurs projets\n" +
+                        "- Effectuer des dons en toute sécurité\n" +
+                        "- Suivre l'impact de vos contributions\n\n" +
+                        "Merci de faire partie de notre communauté solidaire.\n\n" +
+                        "Cordialement,\n" +
+                        "L'équipe %s",
+                utilisateur.getPrenom(),
+                utilisateur.getNom(),
+                appName,
+                appName
+        );
+
+        message.setText(texte);
+        emailSender.send(message);
     }
 
     /**
-     * Envoyer un email de validation d'association
+     * Envoyer email de confirmation d'inscription (associations)
      */
-    public void envoyerEmailValidationAssociation(String destinataire, String nomAssociation) {
+    public void envoyerEmailConfirmationInscription(Utilisateur utilisateur) {
         SimpleMailMessage message = new SimpleMailMessage();
+        message.setTo(utilisateur.getEmail());
         message.setFrom(fromEmail);
-        message.setTo(destinataire);
-        message.setSubject("Validation de votre association");
-        message.setText("Bonjour,\n\n" +
-                "Votre association '" + nomAssociation + "' a été validée avec succès.\n" +
-                "Vous pouvez maintenant créer des projets et recevoir des dons.\n\n" +
-                "Cordialement,\nL'équipe de la plateforme");
+        message.setSubject("Demande d'inscription reçue - " + appName);
 
-        try {
-            mailSender.send(message);
-        } catch (Exception e) {
-            System.err.println("Erreur lors de l'envoi de l'email de validation: " + e.getMessage());
-        }
+        String texte = String.format(
+                "Bonjour %s %s,\n\n" +
+                        "Nous avons bien reçu votre demande d'inscription sur %s.\n\n" +
+                        "Votre dossier est actuellement en cours d'examen par notre équipe. " +
+                        "Vous recevrez un email de confirmation une fois la validation effectuée.\n\n" +
+                        "Ce processus peut prendre 2-3 jours ouvrables.\n\n" +
+                        "Merci pour votre patience.\n\n" +
+                        "Cordialement,\n" +
+                        "L'équipe %s",
+                utilisateur.getPrenom(),
+                utilisateur.getNom(),
+                appName,
+                appName
+        );
+
+        message.setText(texte);
+        emailSender.send(message);
     }
 
     /**
-     * Envoyer un email pour un don reçu
+     * Envoyer email de validation de compte
      */
-    public void envoyerEmailDonRecu(String destinataire, String nomDonateur, String montant, String nomProjet) {
+    public void envoyerEmailValidation(Utilisateur utilisateur) {
         SimpleMailMessage message = new SimpleMailMessage();
+        message.setTo(utilisateur.getEmail());
         message.setFrom(fromEmail);
-        message.setTo(destinataire);
-        message.setSubject("Nouveau don reçu");
-        message.setText("Bonjour,\n\n" +
-                "Vous avez reçu un nouveau don de " + montant + " DH de " + nomDonateur +
-                " pour votre projet '" + nomProjet + "'.\n\n" +
-                "Cordialement,\nL'équipe de la plateforme");
+        message.setSubject("Votre compte a été validé - " + appName);
 
-        try {
-            mailSender.send(message);
-        } catch (Exception e) {
-            System.err.println("Erreur lors de l'envoi de l'email de don reçu: " + e.getMessage());
-        }
+        String texte = String.format(
+                "Bonjour %s %s,\n\n" +
+                        "Excellente nouvelle ! Votre compte a été validé avec succès.\n\n" +
+                        "Vous pouvez maintenant vous connecter et accéder à toutes les fonctionnalités de %s.\n\n" +
+                        "Connectez-vous dès maintenant pour commencer à créer vos projets et recevoir des dons.\n\n" +
+                        "Bienvenue dans notre communauté !\n\n" +
+                        "Cordialement,\n" +
+                        "L'équipe %s",
+                utilisateur.getPrenom(),
+                utilisateur.getNom(),
+                appName,
+                appName
+        );
+
+        message.setText(texte);
+        emailSender.send(message);
     }
 
     /**
-     * Envoyer un email pour un don validé
+     * Envoyer email de refus de compte
      */
-    public void envoyerEmailDonValide(String destinataire, String nomProjet, String montant) {
+    public void envoyerEmailRefus(Utilisateur utilisateur, String motif) {
         SimpleMailMessage message = new SimpleMailMessage();
+        message.setTo(utilisateur.getEmail());
         message.setFrom(fromEmail);
-        message.setTo(destinataire);
-        message.setSubject("Don validé");
-        message.setText("Bonjour,\n\n" +
-                "Votre don de " + montant + " DH pour le projet '" + nomProjet + "' a été validé.\n" +
-                "Merci pour votre générosité !\n\n" +
-                "Cordialement,\nL'équipe de la plateforme");
+        message.setSubject("Votre demande d'inscription - " + appName);
 
-        try {
-            mailSender.send(message);
-        } catch (Exception e) {
-            System.err.println("Erreur lors de l'envoi de l'email de don validé: " + e.getMessage());
-        }
+        String texte = String.format(
+                "Bonjour %s %s,\n\n" +
+                        "Nous vous remercions pour votre intérêt pour %s.\n\n" +
+                        "Après examen de votre dossier, nous ne pouvons malheureusement pas valider votre inscription.\n\n" +
+                        "Motif : %s\n\n" +
+                        "Si vous pensez qu'il s'agit d'une erreur, n'hésitez pas à nous contacter.\n\n" +
+                        "Cordialement,\n" +
+                        "L'équipe %s",
+                utilisateur.getPrenom(),
+                utilisateur.getNom(),
+                appName,
+                motif != null ? motif : "Non spécifié",
+                appName
+        );
+
+        message.setText(texte);
+        emailSender.send(message);
     }
 
     /**
-     * Envoyer un email pour un projet complété
+     * Envoyer nouveau mot de passe
      */
-    public void envoyerEmailProjetComplete(String destinataire, String nomProjet) {
+    public void envoyerNouveauMotDePasse(Utilisateur utilisateur, String nouveauMotDePasse) {
         SimpleMailMessage message = new SimpleMailMessage();
+        message.setTo(utilisateur.getEmail());
         message.setFrom(fromEmail);
-        message.setTo(destinataire);
-        message.setSubject("Projet complété");
-        message.setText("Félicitations !\n\n" +
-                "Votre projet '" + nomProjet + "' a atteint son objectif financier.\n" +
-                "Merci à tous les donateurs qui ont contribué à ce succès.\n\n" +
-                "Cordialement,\nL'équipe de la plateforme");
+        message.setSubject("Réinitialisation de votre mot de passe - " + appName);
 
-        try {
-            mailSender.send(message);
-        } catch (Exception e) {
-            System.err.println("Erreur lors de l'envoi de l'email de projet complété: " + e.getMessage());
-        }
+        String texte = String.format(
+                "Bonjour %s %s,\n\n" +
+                        "Votre mot de passe a été réinitialisé avec succès.\n\n" +
+                        "Votre nouveau mot de passe temporaire est : %s\n\n" +
+                        "IMPORTANT : Nous vous recommandons fortement de changer ce mot de passe " +
+                        "dès votre prochaine connexion pour des raisons de sécurité.\n\n" +
+                        "Si vous n'avez pas demandé cette réinitialisation, contactez-nous immédiatement.\n\n" +
+                        "Cordialement,\n" +
+                        "L'équipe %s",
+                utilisateur.getPrenom(),
+                utilisateur.getNom(),
+                nouveauMotDePasse,
+                appName
+        );
+
+        message.setText(texte);
+        emailSender.send(message);
     }
 
     /**
-     * Envoyer un email de réinitialisation de mot de passe
+     * Envoyer notification de don reçu (association)
      */
-    public void envoyerEmailResetMotDePasse(String destinataire, String nouveauMotDePasse) {
+    public void envoyerEmailDonRecu(Utilisateur association, String nomDonateur, Double montant, String nomProjet) {
         SimpleMailMessage message = new SimpleMailMessage();
+        message.setTo(association.getEmail());
         message.setFrom(fromEmail);
-        message.setTo(destinataire);
-        message.setSubject("Réinitialisation de mot de passe");
-        message.setText("Bonjour,\n\n" +
-                "Votre mot de passe a été réinitialisé.\n" +
-                "Votre nouveau mot de passe temporaire est : " + nouveauMotDePasse + "\n" +
-                "Veuillez le changer dès votre prochaine connexion.\n\n" +
-                "Cordialement,\nL'équipe de la plateforme");
+        message.setSubject("Nouveau don reçu - " + appName);
 
-        try {
-            mailSender.send(message);
-        } catch (Exception e) {
-            System.err.println("Erreur lors de l'envoi de l'email de reset: " + e.getMessage());
-        }
+        String texte = String.format(
+                "Bonjour %s %s,\n\n" +
+                        "Excellente nouvelle ! Vous avez reçu un nouveau don.\n\n" +
+                        "Détails du don :\n" +
+                        "- Montant : %.2f DH\n" +
+                        "- Donateur : %s\n" +
+                        "- Projet : %s\n\n" +
+                        "Merci de continuer à faire la différence !\n\n" +
+                        "Cordialement,\n" +
+                        "L'équipe %s",
+                association.getPrenom(),
+                association.getNom(),
+                montant,
+                nomDonateur,
+                nomProjet,
+                appName
+        );
+
+        message.setText(texte);
+        emailSender.send(message);
     }
 
     /**
-     * Envoyer un email pour une notification urgente
-     * (Méthode ajoutée pour le NotificationService)
+     * Envoyer confirmation de don (donateur)
      */
-    public void envoyerEmailNotificationUrgente(String destinataire, String nom, String titre, String message) {
-        SimpleMailMessage mailMessage = new SimpleMailMessage();
-        mailMessage.setFrom(fromEmail);
-        mailMessage.setTo(destinataire);
-        mailMessage.setSubject("🚨 URGENT - " + titre);
-        mailMessage.setText("Bonjour " + nom + ",\n\n" +
-                "Vous avez reçu une notification urgente :\n\n" +
-                "📋 " + titre + "\n" +
-                "💬 " + (message != null ? message : "Aucun détail supplémentaire") + "\n\n" +
-                "⚠️ Cette notification nécessite votre attention immédiate.\n" +
-                "Veuillez vous connecter à la plateforme pour plus de détails.\n\n" +
-                "Cordialement,\nL'équipe de la plateforme");
+    public void envoyerEmailConfirmationDon(Utilisateur donateur, Double montant, String nomProjet, String nomAssociation) {
+        SimpleMailMessage message = new SimpleMailMessage();
+        message.setTo(donateur.getEmail());
+        message.setFrom(fromEmail);
+        message.setSubject("Confirmation de votre don - " + appName);
 
-        try {
-            mailSender.send(mailMessage);
-        } catch (Exception e) {
-            System.err.println("Erreur lors de l'envoi de l'email urgent: " + e.getMessage());
-        }
+        String texte = String.format(
+                "Bonjour %s %s,\n\n" +
+                        "Merci pour votre générosité !\n\n" +
+                        "Votre don a été effectué avec succès :\n" +
+                        "- Montant : %.2f DH\n" +
+                        "- Projet : %s\n" +
+                        "- Association : %s\n\n" +
+                        "Vous pouvez suivre l'impact de votre contribution dans votre espace personnel.\n\n" +
+                        "Merci de faire partie du changement !\n\n" +
+                        "Cordialement,\n" +
+                        "L'équipe %s",
+                donateur.getPrenom(),
+                donateur.getNom(),
+                montant,
+                nomProjet,
+                nomAssociation,
+                appName
+        );
+
+        message.setText(texte);
+        emailSender.send(message);
     }
 
     /**
-     * Envoyer un email de refus d'association
+     * Envoyer rappel d'échéance de projet
      */
-    public void envoyerEmailRefusAssociation(String destinataire, String nomAssociation, String motif) {
+    public void envoyerRappelEcheance(Utilisateur association, String nomProjet, int joursRestants, double progres) {
         SimpleMailMessage message = new SimpleMailMessage();
+        message.setTo(association.getEmail());
         message.setFrom(fromEmail);
-        message.setTo(destinataire);
-        message.setSubject("Demande d'association refusée");
-        message.setText("Bonjour,\n\n" +
-                "Nous regrettons de vous informer que votre demande d'association '" + nomAssociation +
-                "' a été refusée.\n\n" +
-                "Motif : " + (motif != null ? motif : "Non spécifié") + "\n\n" +
-                "Vous pouvez contacter notre équipe pour obtenir plus d'informations ou " +
-                "soumettre une nouvelle demande après avoir corrigé les points mentionnés.\n\n" +
-                "Cordialement,\nL'équipe de la plateforme");
+        message.setSubject("Rappel : Échéance de projet approche - " + appName);
 
-        try {
-            mailSender.send(message);
-        } catch (Exception e) {
-            System.err.println("Erreur lors de l'envoi de l'email de refus: " + e.getMessage());
-        }
+        String texte = String.format(
+                "Bonjour %s %s,\n\n" +
+                        "Votre projet \"%s\" arrive bientôt à échéance.\n\n" +
+                        "Informations :\n" +
+                        "- Jours restants : %d\n" +
+                        "- Progression actuelle : %.1f%%\n\n" +
+                        "N'hésitez pas à promouvoir votre projet pour atteindre votre objectif !\n\n" +
+                        "Cordialement,\n" +
+                        "L'équipe %s",
+                association.getPrenom(),
+                association.getNom(),
+                nomProjet,
+                joursRestants,
+                progres,
+                appName
+        );
+
+        message.setText(texte);
+        emailSender.send(message);
     }
 
     /**
-     * Envoyer un email de rappel d'échéance de projet
+     * Méthode générique pour envoyer un email
      */
-    public void envoyerEmailRappelEcheance(String destinataire, String nomProjet, int joursRestants, double progres) {
+    public void envoyerEmail(String destinataire, String sujet, String contenu) {
         SimpleMailMessage message = new SimpleMailMessage();
-        message.setFrom(fromEmail);
         message.setTo(destinataire);
-        message.setSubject("⏰ Rappel : Échéance proche pour votre projet");
-        message.setText("Bonjour,\n\n" +
-                "Nous vous rappelons que votre projet '" + nomProjet +
-                "' arrive à échéance dans " + joursRestants + " jour(s).\n\n" +
-                "📊 Progression actuelle : " + String.format("%.1f", progres) + "%\n\n" +
-                "N'hésitez pas à promouvoir votre projet pour atteindre votre objectif !\n\n" +
-                "Cordialement,\nL'équipe de la plateforme");
-
-        try {
-            mailSender.send(message);
-        } catch (Exception e) {
-            System.err.println("Erreur lors de l'envoi de l'email de rappel: " + e.getMessage());
-        }
-    }
-
-    /**
-     * Envoyer un email de rapport mensuel/hebdomadaire
-     */
-    public void envoyerEmailRapport(String destinataire, String nom, String typeRapport, String contenuRapport) {
-        SimpleMailMessage message = new SimpleMailMessage();
         message.setFrom(fromEmail);
-        message.setTo(destinataire);
-        message.setSubject("📊 Votre rapport " + typeRapport + " est disponible");
-        message.setText("Bonjour " + nom + ",\n\n" +
-                "Votre rapport " + typeRapport + " est maintenant disponible.\n\n" +
-                "📈 Résumé :\n" + contenuRapport + "\n\n" +
-                "Connectez-vous à votre espace pour consulter le rapport détaillé.\n\n" +
-                "Cordialement,\nL'équipe de la plateforme");
-
-        try {
-            mailSender.send(message);
-        } catch (Exception e) {
-            System.err.println("Erreur lors de l'envoi de l'email de rapport: " + e.getMessage());
-        }
-    }
-
-    /**
-     * Envoyer un email de maintenance programmée
-     */
-    public void envoyerEmailMaintenance(String destinataire, String nom, String dateDebut, String dureeEstimee, String details) {
-        SimpleMailMessage message = new SimpleMailMessage();
-        message.setFrom(fromEmail);
-        message.setTo(destinataire);
-        message.setSubject("🔧 Maintenance programmée de la plateforme");
-        message.setText("Bonjour " + nom + ",\n\n" +
-                "Nous vous informons qu'une maintenance de notre plateforme est programmée :\n\n" +
-                "📅 Date et heure : " + dateDebut + "\n" +
-                "⏱️ Durée estimée : " + dureeEstimee + "\n" +
-                "🔧 Détails : " + details + "\n\n" +
-                "Durant cette période, la plateforme pourra être temporairement inaccessible.\n" +
-                "Nous nous excusons pour la gêne occasionnée.\n\n" +
-                "Cordialement,\nL'équipe de la plateforme");
-
-        try {
-            mailSender.send(message);
-        } catch (Exception e) {
-            System.err.println("Erreur lors de l'envoi de l'email de maintenance: " + e.getMessage());
-        }
-    }
-
-    /**
-     * Envoyer un email personnalisé (méthode générique)
-     */
-    public void envoyerEmailPersonnalise(String destinataire, String sujet, String contenu) {
-        SimpleMailMessage message = new SimpleMailMessage();
-        message.setFrom(fromEmail);
-        message.setTo(destinataire);
         message.setSubject(sujet);
         message.setText(contenu);
-
-        try {
-            mailSender.send(message);
-        } catch (Exception e) {
-            System.err.println("Erreur lors de l'envoi de l'email personnalisé: " + e.getMessage());
-        }
+        emailSender.send(message);
     }
 
     /**
-     * Envoyer un email à plusieurs destinataires
+     * Envoyer email de notification de projet terminé
      */
-    public void envoyerEmailGroupe(String[] destinataires, String sujet, String contenu) {
+    public void envoyerEmailProjetTermine(Utilisateur association, String nomProjet, Double montantCollecte) {
         SimpleMailMessage message = new SimpleMailMessage();
+        message.setTo(association.getEmail());
         message.setFrom(fromEmail);
-        message.setTo(destinataires);
-        message.setSubject(sujet);
-        message.setText(contenu);
+        message.setSubject("Félicitations ! Projet terminé - " + appName);
 
-        try {
-            mailSender.send(message);
-        } catch (Exception e) {
-            System.err.println("Erreur lors de l'envoi de l'email de groupe: " + e.getMessage());
-        }
+        String texte = String.format(
+                "Bonjour %s %s,\n\n" +
+                        "Félicitations ! Votre projet \"%s\" a atteint son objectif !\n\n" +
+                        "Montant total collecté : %.2f DH\n\n" +
+                        "Merci d'avoir fait confiance à notre plateforme pour réaliser ce beau projet.\n" +
+                        "N'hésitez pas à partager l'impact de ce projet avec vos donateurs.\n\n" +
+                        "Encore félicitations !\n\n" +
+                        "Cordialement,\n" +
+                        "L'équipe %s",
+                association.getPrenom(),
+                association.getNom(),
+                nomProjet,
+                montantCollecte,
+                appName
+        );
+
+        message.setText(texte);
+        emailSender.send(message);
     }
 
     /**
-     * Vérifier la configuration email
+     * Envoyer email de rapport mensuel
      */
-    public boolean verifierConfiguration() {
-        try {
-            SimpleMailMessage testMessage = new SimpleMailMessage();
-            testMessage.setFrom(fromEmail);
-            testMessage.setTo(fromEmail); // Envoie à soi-même pour test
-            testMessage.setSubject("Test de configuration email");
-            testMessage.setText("Ceci est un test de configuration email.");
-
-            mailSender.send(testMessage);
-            return true;
-        } catch (Exception e) {
-            System.err.println("Erreur de configuration email: " + e.getMessage());
-            return false;
-        }
-    }
-
-    /**
-     * Obtenir les informations de configuration
-     */
-    public String getFromEmail() {
-        return fromEmail;
-    }
-
-    /**
-     * Envoyer un email avec accusé de réception (si supporté)
-     */
-    public void envoyerEmailAvecAccuse(String destinataire, String sujet, String contenu) {
+    public void envoyerRapportMensuel(Utilisateur utilisateur, String rapport) {
         SimpleMailMessage message = new SimpleMailMessage();
+        message.setTo(utilisateur.getEmail());
         message.setFrom(fromEmail);
-        message.setTo(destinataire);
-        message.setSubject(sujet);
-        message.setText(contenu + "\n\n---\nCet email a été envoyé automatiquement par la plateforme de médiation.");
+        message.setSubject("Votre rapport mensuel - " + appName);
 
-        try {
-            mailSender.send(message);
-        } catch (Exception e) {
-            System.err.println("Erreur lors de l'envoi de l'email avec accusé: " + e.getMessage());
-        }
+        String texte = String.format(
+                "Bonjour %s %s,\n\n" +
+                        "Voici votre rapport d'activité du mois :\n\n" +
+                        "%s\n\n" +
+                        "Merci de votre engagement sur notre plateforme !\n\n" +
+                        "Cordialement,\n" +
+                        "L'équipe %s",
+                utilisateur.getPrenom(),
+                utilisateur.getNom(),
+                rapport,
+                appName
+        );
+
+        message.setText(texte);
+        emailSender.send(message);
     }
 }

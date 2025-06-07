@@ -26,24 +26,25 @@ public class ApiResponse<T> {
         this.data = data;
     }
 
-    // Méthodes statiques pour créer des réponses
+    // Méthodes statiques pour créer des réponses - CORRIGÉES
     public static <T> ApiResponse<T> success(String message, T data) {
         return new ApiResponse<>(true, message, data);
     }
 
-    public static <T> ApiResponse<T> success(String message) {
-        return new ApiResponse<>(true, message);
+    public static ApiResponse<Object> success(String message) {
+        return new ApiResponse<>(true, message, null);
     }
 
-    public static <T> ApiResponse<T> error(String message) {
-        ApiResponse<T> response = new ApiResponse<>(false, message);
+    public static ApiResponse<Object> error(String message) {
+        ApiResponse<Object> response = new ApiResponse<>(false, message);
         response.setError(message);
         return response;
     }
 
-    public static <T> ApiResponse<T> error(String message, String error) {
+    public static <T> ApiResponse<T> error(String message, T errorData) {
         ApiResponse<T> response = new ApiResponse<>(false, message);
-        response.setError(error);
+        response.setError(message);
+        response.setData(errorData);
         return response;
     }
 

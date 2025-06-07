@@ -39,7 +39,7 @@ public class ProjetController {
      */
     @GetMapping
     @Operation(summary = "Liste des projets", description = "Récupère tous les projets actifs")
-    public ResponseEntity<ApiResponse<List<Projet>>> getAllProjets() {
+    public ResponseEntity<?> getAllProjets() {
         try {
             List<Projet> projets = projetService.findActiveProjects();
             return ResponseEntity.ok(ApiResponse.success("Projets récupérés avec succès", projets));
@@ -54,7 +54,7 @@ public class ProjetController {
      */
     @GetMapping("/{id}")
     @Operation(summary = "Détails projet", description = "Récupère les détails d'un projet")
-    public ResponseEntity<ApiResponse<Projet>> getProjet(@PathVariable Long id) {
+    public ResponseEntity<?> getProjet(@PathVariable Long id) {
         try {
             Projet projet = projetService.findById(id);
             return ResponseEntity.ok(ApiResponse.success("Projet récupéré avec succès", projet));
@@ -70,7 +70,7 @@ public class ProjetController {
     @PostMapping
     @PreAuthorize("hasRole('ASSOCIATION')")
     @Operation(summary = "Créer projet", description = "Créer un nouveau projet (associations seulement)")
-    public ResponseEntity<ApiResponse<Projet>> creerProjet(
+    public ResponseEntity<?> creerProjet(
             @Valid @RequestBody Projet projetData,
             @RequestHeader("Authorization") String token) {
         try {
@@ -108,7 +108,7 @@ public class ProjetController {
     @PutMapping("/{id}")
     @PreAuthorize("hasRole('ASSOCIATION')")
     @Operation(summary = "Modifier projet", description = "Modifie un projet existant")
-    public ResponseEntity<ApiResponse<Projet>> modifierProjet(
+    public ResponseEntity<?> modifierProjet(
             @PathVariable Long id,
             @Valid @RequestBody Projet projetData,
             @RequestHeader("Authorization") String token) {
@@ -137,7 +137,7 @@ public class ProjetController {
     @DeleteMapping("/{id}")
     @PreAuthorize("hasRole('ASSOCIATION')")
     @Operation(summary = "Supprimer projet", description = "Supprime un projet (le marque comme annulé)")
-    public ResponseEntity<ApiResponse<String>> supprimerProjet(
+    public ResponseEntity<?> supprimerProjet(
             @PathVariable Long id,
             @RequestHeader("Authorization") String token) {
         try {
@@ -164,7 +164,7 @@ public class ProjetController {
      */
     @GetMapping("/recherche")
     @Operation(summary = "Rechercher projets", description = "Recherche des projets par mot-clé")
-    public ResponseEntity<ApiResponse<List<Projet>>> rechercherProjets(@RequestParam String keyword) {
+    public ResponseEntity<?> rechercherProjets(@RequestParam String keyword) {
         try {
             List<Projet> projets = projetService.searchByKeyword(keyword);
             return ResponseEntity.ok(ApiResponse.success("Résultats de recherche", projets));
@@ -179,7 +179,7 @@ public class ProjetController {
      */
     @GetMapping("/statut/{statut}")
     @Operation(summary = "Projets par statut", description = "Récupère les projets selon leur statut")
-    public ResponseEntity<ApiResponse<List<Projet>>> getProjetsByStatut(@PathVariable String statut) {
+    public ResponseEntity<?> getProjetsByStatut(@PathVariable String statut) {
         try {
             StatutProjet statutProjet = StatutProjet.valueOf(statut.toUpperCase());
             List<Projet> projets = projetService.findByStatut(statutProjet);
@@ -198,7 +198,7 @@ public class ProjetController {
      */
     @GetMapping("/proche-objectif")
     @Operation(summary = "Projets proches objectif", description = "Projets ayant atteint au moins 90% de leur objectif")
-    public ResponseEntity<ApiResponse<List<Projet>>> getProjetsProchesObjectif() {
+    public ResponseEntity<?> getProjetsProchesObjectif() {
         try {
             List<Projet> projets = projetService.findNearGoal(0.9);
             return ResponseEntity.ok(ApiResponse.success("Projets proches de l'objectif", projets));
@@ -214,7 +214,7 @@ public class ProjetController {
     @GetMapping("/en-retard")
     @PreAuthorize("hasRole('ADMINISTRATEUR')")
     @Operation(summary = "Projets en retard", description = "Projets ayant dépassé leur date limite")
-    public ResponseEntity<ApiResponse<List<Projet>>> getProjetsEnRetard() {
+    public ResponseEntity<?> getProjetsEnRetard() {
         try {
             List<Projet> projets = projetService.findOverdueProjects();
             return ResponseEntity.ok(ApiResponse.success("Projets en retard", projets));
@@ -229,7 +229,7 @@ public class ProjetController {
      */
     @GetMapping("/recents")
     @Operation(summary = "Projets récents", description = "Projets créés dans les 30 derniers jours")
-    public ResponseEntity<ApiResponse<List<Projet>>> getProjetsRecents() {
+    public ResponseEntity<?> getProjetsRecents() {
         try {
             LocalDateTime dateDebut = LocalDateTime.now().minusDays(30);
             List<Projet> projets = projetService.findRecentProjects(dateDebut);
@@ -245,7 +245,7 @@ public class ProjetController {
      */
     @GetMapping("/top")
     @Operation(summary = "Top projets", description = "Projets classés par montant collecté")
-    public ResponseEntity<ApiResponse<List<Projet>>> getTopProjets() {
+    public ResponseEntity<?> getTopProjets() {
         try {
             List<Projet> projets = projetService.findTopProjects();
             return ResponseEntity.ok(ApiResponse.success("Top projets", projets));
@@ -260,7 +260,7 @@ public class ProjetController {
      */
     @GetMapping("/{id}/statistiques")
     @Operation(summary = "Statistiques projet", description = "Statistiques détaillées d'un projet")
-    public ResponseEntity<ApiResponse<Map<String, Object>>> getStatistiquesProjet(@PathVariable Long id) {
+    public ResponseEntity<?> getStatistiquesProjet(@PathVariable Long id) {
         try {
             Projet projet = projetService.findById(id);
 
@@ -290,7 +290,7 @@ public class ProjetController {
     @PostMapping("/{id}/terminer")
     @PreAuthorize("hasRole('ASSOCIATION') or hasRole('ADMINISTRATEUR')")
     @Operation(summary = "Terminer projet", description = "Marque un projet comme terminé")
-    public ResponseEntity<ApiResponse<String>> terminerProjet(
+    public ResponseEntity<?> terminerProjet(
             @PathVariable Long id,
             @RequestHeader("Authorization") String token) {
         try {
