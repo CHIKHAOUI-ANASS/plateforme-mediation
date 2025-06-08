@@ -1,4 +1,4 @@
-package com.mediation.platform.service;
+package com.mediation.platform.security;
 
 import com.mediation.platform.entity.Utilisateur;
 import com.mediation.platform.repository.UtilisateurRepository;

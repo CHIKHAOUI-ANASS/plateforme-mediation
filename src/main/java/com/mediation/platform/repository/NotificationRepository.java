@@ -1,12 +1,15 @@
+// 7. NotificationRepository.java
 package com.mediation.platform.repository;
 
 import com.mediation.platform.entity.Notification;
 import com.mediation.platform.entity.Utilisateur;
 import com.mediation.platform.enums.TypeNotification;
 import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.Modifying;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 import org.springframework.stereotype.Repository;
+import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDateTime;
 import java.util.List;
@@ -36,6 +39,8 @@ public interface NotificationRepository extends JpaRepository<Notification, Long
     List<Notification> findRecentNotifications(@Param("dateDebut") LocalDateTime dateDebut);
 
     // Marquer comme lues
+    @Modifying
+    @Transactional
     @Query("UPDATE Notification n SET n.lu = true WHERE n.utilisateur = :utilisateur")
     void markAllAsReadForUser(@Param("utilisateur") Utilisateur utilisateur);
 }

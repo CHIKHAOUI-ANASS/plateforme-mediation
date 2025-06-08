@@ -59,6 +59,12 @@ public class SecurityConfig {
                         .requestMatchers("/swagger-ui/**").permitAll()
                         .requestMatchers("/api-docs/**").permitAll()
                         .requestMatchers("/swagger-ui.html").permitAll()
+                        .requestMatchers("/v3/api-docs/**").permitAll()
+
+                        // Endpoints publics pour consultation
+                        .requestMatchers("/projets", "/projets/{id}").permitAll()
+                        .requestMatchers("/associations", "/associations/{id}").permitAll()
+                        .requestMatchers("/statistiques/publiques").permitAll()
 
                         // Endpoints admin
                         .requestMatchers("/admin/**").hasRole("ADMINISTRATEUR")
@@ -67,16 +73,15 @@ public class SecurityConfig {
                         .requestMatchers("/donateur/**").hasRole("DONATEUR")
 
                         // Endpoints association
-                        .requestMatchers("/association/**").hasRole("ASSOCIATION")
+                        .requestMatchers("/associations/dashboard").hasRole("ASSOCIATION")
+                        .requestMatchers("/associations/profil").hasRole("ASSOCIATION")
+                        .requestMatchers("/associations/projets").hasRole("ASSOCIATION")
 
                         // Tout le reste nécessite une authentification
                         .anyRequest().authenticated()
                 );
 
-        // Ajouter le filtre JWT
         http.addFilterBefore(jwtAuthenticationFilter, UsernamePasswordAuthenticationFilter.class);
-
-        // Pour H2 Console
         http.headers(headers -> headers.frameOptions().disable());
 
         return http.build();

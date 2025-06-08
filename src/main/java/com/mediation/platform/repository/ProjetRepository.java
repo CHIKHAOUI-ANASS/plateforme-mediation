@@ -9,6 +9,7 @@ import org.springframework.data.repository.query.Param;
 import org.springframework.stereotype.Repository;
 
 import java.time.LocalDate;
+import java.time.LocalDateTime;
 import java.util.List;
 
 @Repository
@@ -30,19 +31,19 @@ public interface ProjetRepository extends JpaRepository<Projet, Long> {
     List<Projet> findByPrioriteOrderByDateCreationDesc(String priorite);
 
     // Projets proches de l'objectif
-    @Query("SELECT p FROM Projet p WHERE p.statut = 'ACTIF' " +
+    @Query("SELECT p FROM Projet p WHERE p.statut = 'EN_COURS' " +
             "AND (p.montantCollecte / p.montantDemande) >= :pourcentage")
     List<Projet> findNearGoal(@Param("pourcentage") double pourcentage);
 
     // Projets en retard
     @Query("SELECT p FROM Projet p WHERE p.dateFin < :dateActuelle " +
-            "AND p.statut = 'ACTIF'")
+            "AND p.statut = 'EN_COURS'")
     List<Projet> findOverdueProjects(@Param("dateActuelle") LocalDate dateActuelle);
 
     // Projets récents
     @Query("SELECT p FROM Projet p WHERE p.dateCreation >= :dateDebut " +
             "ORDER BY p.dateCreation DESC")
-    List<Projet> findRecentProjects(@Param("dateDebut") java.time.LocalDateTime dateDebut);
+    List<Projet> findRecentProjects(@Param("dateDebut") LocalDateTime dateDebut);
 
     // Top projets par montant collecté
     @Query("SELECT p FROM Projet p ORDER BY p.montantCollecte DESC")

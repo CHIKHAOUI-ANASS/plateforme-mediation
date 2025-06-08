@@ -40,7 +40,7 @@ public interface TransactionRepository extends JpaRepository<Transaction, Long> 
 
     // Taux de réussite des transactions
     @Query("SELECT " +
-            "(SELECT COUNT(t1) FROM Transaction t1 WHERE t1.statut = 'REUSSIE') *  100.0 / " +
+            "(SELECT COUNT(t1) FROM Transaction t1 WHERE t1.statut = 'REUSSIE') * 100.0 / " +
             "(SELECT COUNT(t2) FROM Transaction t2) as taux")
     Double getSuccessRate();
 
@@ -49,4 +49,3 @@ public interface TransactionRepository extends JpaRepository<Transaction, Long> 
             "ORDER BY t.dateTransaction DESC")
     List<Transaction> findRecentTransactions(@Param("dateDebut") LocalDateTime dateDebut);
 }
-

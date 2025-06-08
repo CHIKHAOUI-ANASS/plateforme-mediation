@@ -23,49 +23,31 @@ public class AssociationService {
     @Autowired
     private EmailService emailService;
 
-    /**
-     * Trouver une association par ID
-     */
+    // ========== MÉTHODES EXISTANTES ==========
     public Association findById(Long id) {
         return associationRepository.findById(id)
                 .orElseThrow(() -> new ResourceNotFoundException("Association non trouvée avec l'ID: " + id));
     }
 
-    /**
-     * Trouver toutes les associations
-     */
     public List<Association> findAll() {
         return associationRepository.findAll();
     }
 
-    /**
-     * Associations validées uniquement
-     */
     public List<Association> findValidatedAssociations() {
         return associationRepository.findByStatutValidationTrue();
     }
 
-    /**
-     * Associations en attente de validation
-     */
     public List<Association> findPendingValidation() {
         return associationRepository.findByStatutValidationFalse();
     }
 
-    /**
-     * Sauvegarder une association
-     */
     public Association save(Association association) {
         return associationRepository.save(association);
     }
 
-    /**
-     * Mettre à jour une association
-     */
     public Association update(Long id, Association associationData) {
         Association association = findById(id);
 
-        // Mettre à jour les champs modifiables
         if (associationData.getNom() != null) {
             association.setNom(associationData.getNom());
         }
@@ -94,17 +76,11 @@ public class AssociationService {
         return associationRepository.save(association);
     }
 
-    /**
-     * Supprimer une association
-     */
     public void deleteById(Long id) {
         Association association = findById(id);
         associationRepository.delete(association);
     }
 
-    /**
-     * Valider une association
-     */
     public Association validerAssociation(Long id) {
         Association association = findById(id);
 
@@ -114,7 +90,6 @@ public class AssociationService {
 
         Association savedAssociation = associationRepository.save(association);
 
-        // Envoyer notifications
         try {
             emailService.envoyerEmailValidation(savedAssociation);
             notificationService.creerNotificationValidation(savedAssociation);
@@ -125,9 +100,6 @@ public class AssociationService {
         return savedAssociation;
     }
 
-    /**
-     * Rejeter une association
-     */
     public Association rejeterAssociation(Long id, String motif) {
         Association association = findById(id);
 
@@ -136,7 +108,6 @@ public class AssociationService {
 
         Association savedAssociation = associationRepository.save(association);
 
-        // Envoyer notifications
         try {
             emailService.envoyerEmailRefus(savedAssociation, motif);
             notificationService.creerNotificationRefus(savedAssociation, motif);
@@ -147,52 +118,54 @@ public class AssociationService {
         return savedAssociation;
     }
 
-    /**
-     * Rechercher associations par nom
-     */
     public List<Association> findByNomAssociation(String nom) {
         return associationRepository.findByNomAssociationContainingIgnoreCase(nom);
     }
 
-    /**
-     * Rechercher associations par domaine d'activité
-     */
     public List<Association> findByDomaineActivite(String domaine) {
         return associationRepository.findByDomaineActiviteContainingIgnoreCase(domaine);
     }
 
-    /**
-     * Rechercher associations par ville
-     */
     public List<Association> findByVille(String ville) {
         return associationRepository.findByAdresseContainingIgnoreCase(ville);
     }
 
-    /**
-     * Associations récemment validées
-     */
     public List<Association> findRecentlyValidated(int nombreJours) {
         LocalDateTime dateDebut = LocalDateTime.now().minusDays(nombreJours);
         return associationRepository.findRecentlyValidated(dateDebut);
     }
 
-    /**
-     * Associations avec des projets actifs
-     */
     public List<Association> findWithActiveProjects() {
         return associationRepository.findWithActiveProjects();
     }
 
-    /**
-     * Top associations par montant collecté
-     */
     public List<Association> findTopAssociationsByDonations() {
         return associationRepository.findTopAssociationsByDonations();
     }
 
+    // ========== NOUVELLES MÉTHODES AJOUTÉES ==========
+
     /**
-     * Statistiques générales des associations
+     * Associations récemment validées avec LocalDateTime
      */
+    public List<Association> findRecentlyValidated(LocalDateTime dateDebut) {
+        return associationRepository.findRecentlyValidated(dateDebut);
+    }
+
+    /**
+     * Associations en attente de validation (alias pour compatibilité)
+     */
+    public List<Association> findPendingAssociations() {
+        return findPendingValidation();
+    }
+
+    /**
+     * Top associations (alias pour compatibilité)
+     */
+    public List<Association> findTopAssociations() {
+        return findTopAssociationsByDonations();
+    }
+
     public AssociationStats getGeneralStats() {
         List<Association> allAssociations = findAll();
         List<Association> validatedAssociations = findValidatedAssociations();
@@ -217,30 +190,20 @@ public class AssociationService {
         return stats;
     }
 
-    /**
-     * Vérifier si une association existe
-     */
     public boolean existsById(Long id) {
         return associationRepository.existsById(id);
     }
 
-    /**
-     * Compter le nombre total d'associations
-     */
     public long count() {
         return associationRepository.count();
     }
 
-    /**
-     * Suspendre une association
-     */
     public Association suspendreAssociation(Long id, String motif) {
         Association association = findById(id);
         association.setStatut(com.mediation.platform.enums.StatutUtilisateur.SUSPENDU);
 
         Association savedAssociation = associationRepository.save(association);
 
-        // Envoyer notification
         try {
             notificationService.creerNotification(
                     "Compte suspendu",
@@ -256,16 +219,12 @@ public class AssociationService {
         return savedAssociation;
     }
 
-    /**
-     * Réactiver une association
-     */
     public Association reactiverAssociation(Long id) {
         Association association = findById(id);
         association.setStatut(com.mediation.platform.enums.StatutUtilisateur.ACTIF);
 
         Association savedAssociation = associationRepository.save(association);
 
-        // Envoyer notification
         try {
             notificationService.creerNotification(
                     "Compte réactivé",
@@ -281,9 +240,6 @@ public class AssociationService {
         return savedAssociation;
     }
 
-    /**
-     * Classe interne pour les statistiques
-     */
     public static class AssociationStats {
         private int totalAssociations;
         private int associationsValidees;
@@ -295,19 +251,14 @@ public class AssociationService {
         // Getters et setters
         public int getTotalAssociations() { return totalAssociations; }
         public void setTotalAssociations(int totalAssociations) { this.totalAssociations = totalAssociations; }
-
         public int getAssociationsValidees() { return associationsValidees; }
         public void setAssociationsValidees(int associationsValidees) { this.associationsValidees = associationsValidees; }
-
         public int getAssociationsEnAttente() { return associationsEnAttente; }
         public void setAssociationsEnAttente(int associationsEnAttente) { this.associationsEnAttente = associationsEnAttente; }
-
         public int getAssociationsAvecProjetsActifs() { return associationsAvecProjetsActifs; }
         public void setAssociationsAvecProjetsActifs(int associationsAvecProjetsActifs) { this.associationsAvecProjetsActifs = associationsAvecProjetsActifs; }
-
         public double getMontantTotalCollecte() { return montantTotalCollecte; }
         public void setMontantTotalCollecte(double montantTotalCollecte) { this.montantTotalCollecte = montantTotalCollecte; }
-
         public int getTotalProjets() { return totalProjets; }
         public void setTotalProjets(int totalProjets) { this.totalProjets = totalProjets; }
     }

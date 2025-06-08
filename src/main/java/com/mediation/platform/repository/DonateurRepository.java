@@ -1,3 +1,4 @@
+// 2. DonateurRepository.java
 package com.mediation.platform.repository;
 
 import com.mediation.platform.entity.Donateur;
@@ -6,7 +7,6 @@ import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 import org.springframework.stereotype.Repository;
 
-import java.time.LocalDate;
 import java.util.List;
 
 @Repository
@@ -19,12 +19,12 @@ public interface DonateurRepository extends JpaRepository<Donateur, Long> {
     @Query("SELECT d FROM Donateur d WHERE YEAR(CURRENT_DATE) - YEAR(d.dateNaissance) BETWEEN :ageMin AND :ageMax")
     List<Donateur> findByAgeBetween(@Param("ageMin") int ageMin, @Param("ageMax") int ageMax);
 
-    // Donateurs qui ont fait des dons
-    @Query("SELECT DISTINCT d FROM Donateur d JOIN d.dons don WHERE don.statut = 'CONFIRME'")
+    // Donateurs qui ont fait des dons confirmés
+    @Query("SELECT DISTINCT d FROM Donateur d JOIN d.dons don WHERE don.statut = 'VALIDE'")
     List<Donateur> findDonatorsWithConfirmedDonations();
 
     // Top donateurs par montant total
-    @Query("SELECT d FROM Donateur d JOIN d.dons don WHERE don.statut = 'CONFIRME' " +
+    @Query("SELECT d FROM Donateur d JOIN d.dons don WHERE don.statut = 'VALIDE' " +
             "GROUP BY d ORDER BY SUM(don.montant) DESC")
     List<Donateur> findTopDonators();
 

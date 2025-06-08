@@ -1,3 +1,4 @@
+
 package com.mediation.platform.service;
 
 import com.mediation.platform.entity.Don;
@@ -194,10 +195,10 @@ public class DonService {
     }
 
     /**
-     * Dons validés
+     * Dons validés - NOUVELLE MÉTHODE AJOUTÉE
      */
     public List<Don> findValidatedDons() {
-        return donRepository.findByStatutOrderByDateDesc(StatutDon.VALIDE);
+        return donRepository.findValidatedDons();
     }
 
     /**
@@ -215,10 +216,17 @@ public class DonService {
     }
 
     /**
-     * Dons par période
+     * Dons par période - CORRECTION APPLIQUÉE
+     */
+    public List<Don> findByPeriod(LocalDate dateDebut, LocalDate dateFin) {
+        return donRepository.findByPeriod(dateDebut, dateFin);
+    }
+
+    /**
+     * Dons par période (ancienne méthode) - CORRECTION APPLIQUÉE
      */
     public List<Don> findByPeriode(LocalDate dateDebut, LocalDate dateFin) {
-        return donRepository.findByDateBetweenOrderByDateDesc(dateDebut, dateFin);
+        return donRepository.findByPeriod(dateDebut, dateFin);
     }
 
     /**
@@ -333,8 +341,8 @@ public class DonService {
         LocalDate debutMoisPrecedent = debutMoisActuel.minusMonths(1);
         LocalDate finMoisPrecedent = debutMoisActuel.minusDays(1);
 
-        List<Don> donsMoisActuel = findByPeriode(debutMoisActuel, finMoisActuel);
-        List<Don> donsMoisPrecedent = findByPeriode(debutMoisPrecedent, finMoisPrecedent);
+        List<Don> donsMoisActuel = findByPeriod(debutMoisActuel, finMoisActuel);
+        List<Don> donsMoisPrecedent = findByPeriod(debutMoisPrecedent, finMoisPrecedent);
 
         TendancesDons tendances = new TendancesDons();
         tendances.setDonsCeMois(donsMoisActuel.size());
@@ -397,28 +405,20 @@ public class DonService {
         // Getters et setters
         public int getTotalDons() { return totalDons; }
         public void setTotalDons(int totalDons) { this.totalDons = totalDons; }
-
         public int getDonsValides() { return donsValides; }
         public void setDonsValides(int donsValides) { this.donsValides = donsValides; }
-
         public int getDonsEnAttente() { return donsEnAttente; }
         public void setDonsEnAttente(int donsEnAttente) { this.donsEnAttente = donsEnAttente; }
-
         public int getDonsRefuses() { return donsRefuses; }
         public void setDonsRefuses(int donsRefuses) { this.donsRefuses = donsRefuses; }
-
         public int getDonsAnonymes() { return donsAnonymes; }
         public void setDonsAnonymes(int donsAnonymes) { this.donsAnonymes = donsAnonymes; }
-
         public double getMontantTotal() { return montantTotal; }
         public void setMontantTotal(double montantTotal) { this.montantTotal = montantTotal; }
-
         public double getMontantMoyen() { return montantMoyen; }
         public void setMontantMoyen(double montantMoyen) { this.montantMoyen = montantMoyen; }
-
         public double getDonMaximum() { return donMaximum; }
         public void setDonMaximum(double donMaximum) { this.donMaximum = donMaximum; }
-
         public long getDonateursUniques() { return donateursUniques; }
         public void setDonateursUniques(long donateursUniques) { this.donateursUniques = donateursUniques; }
     }
@@ -434,19 +434,14 @@ public class DonService {
         // Getters et setters
         public int getDonsCeMois() { return donsCeMois; }
         public void setDonsCeMois(int donsCeMois) { this.donsCeMois = donsCeMois; }
-
         public int getDonsMoisPrecedent() { return donsMoisPrecedent; }
         public void setDonsMoisPrecedent(int donsMoisPrecedent) { this.donsMoisPrecedent = donsMoisPrecedent; }
-
         public double getMontantCeMois() { return montantCeMois; }
         public void setMontantCeMois(double montantCeMois) { this.montantCeMois = montantCeMois; }
-
         public double getMontantMoisPrecedent() { return montantMoisPrecedent; }
         public void setMontantMoisPrecedent(double montantMoisPrecedent) { this.montantMoisPrecedent = montantMoisPrecedent; }
-
         public double getEvolutionNombrePourcentage() { return evolutionNombrePourcentage; }
         public void setEvolutionNombrePourcentage(double evolutionNombrePourcentage) { this.evolutionNombrePourcentage = evolutionNombrePourcentage; }
-
         public double getEvolutionMontantPourcentage() { return evolutionMontantPourcentage; }
         public void setEvolutionMontantPourcentage(double evolutionMontantPourcentage) { this.evolutionMontantPourcentage = evolutionMontantPourcentage; }
     }

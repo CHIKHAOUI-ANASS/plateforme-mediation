@@ -31,22 +31,26 @@ public interface DonRepository extends JpaRepository<Don, Long> {
     List<Don> findByAnonymeTrue();
 
     // Dons avec message
-    @Query("SELECT d FROM Don d WHERE d.message IS NOT NULL AND d.message <> ''")
+    @Query("SELECT d FROM Don d WHERE d.message IS NOT NULL AND d.message != ''")
     List<Don> findDonsWithMessage();
 
     // Dons par période
     List<Don> findByDateBetweenOrderByDateDesc(LocalDate dateDebut, LocalDate dateFin);
 
+    // Dons par période (nouvelle version)
+    @Query("SELECT d FROM Don d WHERE d.date BETWEEN :dateDebut AND :dateFin ORDER BY d.date DESC")
+    List<Don> findByPeriod(@Param("dateDebut") LocalDate dateDebut, @Param("dateFin") LocalDate dateFin);
+
     // Montant total des dons confirmés
-    @Query("SELECT SUM(d.montant) FROM Don d WHERE d.statut = 'CONFIRME'")
+    @Query("SELECT SUM(d.montant) FROM Don d WHERE d.statut = 'VALIDE'")
     Double getTotalConfirmedDonations();
 
     // Montant total pour un projet
-    @Query("SELECT SUM(d.montant) FROM Don d WHERE d.projet = :projet AND d.statut = 'CONFIRME'")
+    @Query("SELECT SUM(d.montant) FROM Don d WHERE d.projet = :projet AND d.statut = 'VALIDE'")
     Double getTotalForProject(@Param("projet") Projet projet);
 
     // Nombre de donateurs uniques
-    @Query("SELECT COUNT(DISTINCT d.donateur) FROM Don d WHERE d.statut = 'CONFIRME'")
+    @Query("SELECT COUNT(DISTINCT d.donateur) FROM Don d WHERE d.statut = 'VALIDE'")
     long getUniqueDonorsCount();
 
     // Dons récents (derniers 30 jours)
@@ -54,8 +58,11 @@ public interface DonRepository extends JpaRepository<Don, Long> {
     List<Don> findRecentDonations(@Param("dateDebut") LocalDate dateDebut);
 
     // Gros dons (montant supérieur à un seuil)
-    @Query("SELECT d FROM Don d WHERE d.montant >= :montantMin AND d.statut = 'CONFIRME' " +
+    @Query("SELECT d FROM Don d WHERE d.montant >= :montantMin AND d.statut = 'VALIDE' " +
             "ORDER BY d.montant DESC")
     List<Don> findLargeDonations(@Param("montantMin") Double montantMin);
-}
 
+    // Dons validés
+    @Query("SELECT d FROM Don d WHERE d.statut = 'VALIDE' ORDER BY d.date DESC")
+    List<Don> findValidatedDons();
+}
