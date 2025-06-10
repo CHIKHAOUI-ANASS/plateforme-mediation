@@ -75,21 +75,21 @@
         </dependency>
 
         <!-- Database -->
-        <!-- H2 pour développement -->
+        <!-- H2 pour développement
         <dependency>
             <groupId>com.h2database</groupId>
             <artifactId>h2</artifactId>
             <scope>runtime</scope>
-        </dependency>
+        </dependency>-->
 
         <!-- PostgreSQL pour production (commenté pour l'instant) -->
-        <!--
+
         <dependency>
             <groupId>org.postgresql</groupId>
             <artifactId>postgresql</artifactId>
             <scope>runtime</scope>
         </dependency>
-        -->
+
 
         <!-- Documentation API -->
         <dependency>

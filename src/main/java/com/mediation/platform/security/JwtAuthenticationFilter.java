@@ -32,41 +32,75 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
 
         final String authorizationHeader = request.getHeader("Authorization");
 
+        // 🔥 AJOUT DE LOGS POUR DEBUGGING
+        System.out.println("=== JWT FILTER DEBUG ===");
+        System.out.println("Authorization Header: " + authorizationHeader);
+        System.out.println("Request URI: " + request.getRequestURI());
+        System.out.println("Request Method: " + request.getMethod());
+
         String username = null;
         String jwt = null;
 
-        // Vérifier si le header Authorization existe et commence par "Bearer "
+        // 🔧 CORRECTION : Vérification plus robuste du header
         if (authorizationHeader != null && authorizationHeader.startsWith("Bearer ")) {
-            jwt = authorizationHeader.substring(7);
+            jwt = authorizationHeader.substring(7); // Retire "Bearer "
+
+            // 🔥 LOG DU TOKEN EXTRAIT
+            System.out.println("Token JWT extrait (longueur: " + jwt.length() + "): " + jwt.substring(0, Math.min(50, jwt.length())) + "...");
+
             try {
-                username = jwtUtil.extractUsername(jwt);
+                // 🔧 VÉRIFICATION : Le token a-t-il bien 2 points ?
+                long periodCount = jwt.chars().filter(ch -> ch == '.').count();
+                System.out.println("Nombre de points dans le token: " + periodCount);
+
+                if (periodCount != 2) {
+                    System.err.println("❌ TOKEN INVALIDE - Doit contenir exactement 2 points. Trouvé: " + periodCount);
+                    // 🔥 AFFICHER LE TOKEN COMPLET POUR DEBUG
+                    System.err.println("Token complet reçu: [" + jwt + "]");
+                } else {
+                    username = jwtUtil.extractUsername(jwt);
+                    System.out.println("✅ Username extrait du token: " + username);
+                }
             } catch (Exception e) {
-                // Token invalide, on continue sans authentification
-                logger.warn("Token JWT invalide: " + e.getMessage());
+                System.err.println("❌ Erreur lors de l'extraction du username: " + e.getMessage());
+                e.printStackTrace();
             }
+        } else {
+            System.out.println("❌ Pas de header Authorization ou ne commence pas par 'Bearer '");
         }
 
         // Si on a un username et qu'aucune authentification n'est déjà présente
         if (username != null && SecurityContextHolder.getContext().getAuthentication() == null) {
-            UserDetails userDetails = this.userDetailsService.loadUserByUsername(username);
+            try {
+                UserDetails userDetails = this.userDetailsService.loadUserByUsername(username);
+                System.out.println("✅ UserDetails chargé pour: " + username);
 
-            // Valider le token
-            if (jwtUtil.validateToken(jwt, userDetails)) {
-                // Créer l'objet d'authentification
-                UsernamePasswordAuthenticationToken usernamePasswordAuthenticationToken =
-                        new UsernamePasswordAuthenticationToken(
-                                userDetails,
-                                null,
-                                userDetails.getAuthorities()
-                        );
-                usernamePasswordAuthenticationToken
-                        .setDetails(new WebAuthenticationDetailsSource().buildDetails(request));
+                // Valider le token
+                if (jwtUtil.validateToken(jwt, userDetails)) {
+                    System.out.println("✅ Token valide pour: " + username);
 
-                // Définir l'authentification dans le contexte de sécurité
-                SecurityContextHolder.getContext().setAuthentication(usernamePasswordAuthenticationToken);
+                    // Créer l'objet d'authentification
+                    UsernamePasswordAuthenticationToken authToken =
+                            new UsernamePasswordAuthenticationToken(
+                                    userDetails,
+                                    null,
+                                    userDetails.getAuthorities()
+                            );
+                    authToken.setDetails(new WebAuthenticationDetailsSource().buildDetails(request));
+
+                    // Définir l'authentification dans le contexte de sécurité
+                    SecurityContextHolder.getContext().setAuthentication(authToken);
+                    System.out.println("✅ Authentification définie dans le contexte de sécurité");
+                } else {
+                    System.err.println("❌ Token invalide pour: " + username);
+                }
+            } catch (Exception e) {
+                System.err.println("❌ Erreur lors de la validation: " + e.getMessage());
+                e.printStackTrace();
             }
         }
 
+        System.out.println("=== FIN JWT FILTER DEBUG ===\n");
         filterChain.doFilter(request, response);
     }
 
@@ -74,15 +108,22 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
     protected boolean shouldNotFilter(HttpServletRequest request) throws ServletException {
         String path = request.getRequestURI();
 
-        // Ne pas appliquer le filtre sur ces endpoints
-        return path.startsWith("/auth/") ||
-                path.startsWith("/test/") ||
+        // 🔧 CORRECTION : Liste mise à jour des endpoints publics
+        boolean shouldSkip = path.startsWith("/api/auth/") ||
+                path.startsWith("/api/test/") ||
                 path.startsWith("/h2-console") ||
                 path.startsWith("/swagger-ui") ||
                 path.startsWith("/api-docs") ||
                 path.equals("/swagger-ui.html") ||
                 path.startsWith("/v3/api-docs") ||
-                path.startsWith("/projets") && "GET".equals(request.getMethod()) ||
-                path.startsWith("/associations") && "GET".equals(request.getMethod());
+                (path.startsWith("/api/projets") && "GET".equals(request.getMethod())) ||
+                (path.startsWith("/api/associations") && "GET".equals(request.getMethod())) ||
+                path.startsWith("/api/statistiques/publiques");
+
+        if (shouldSkip) {
+            System.out.println("🚫 Filtre JWT ignoré pour: " + path);
+        }
+
+        return shouldSkip;
     }
 }

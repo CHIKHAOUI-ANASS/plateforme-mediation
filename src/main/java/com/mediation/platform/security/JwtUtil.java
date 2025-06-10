@@ -17,21 +17,34 @@ import java.util.function.Function;
 @Component
 public class JwtUtil {
 
-    @Value("${jwt.secret:mySecretKey}")
+    @Value("${jwt.secret:myVerySecretKeyForJWTTokenGenerationThatIsAtLeast32CharactersLong}")
     private String secret;
 
     @Value("${jwt.expiration:86400}")
-    private Long expiration;
+    private Long expiration; // 24 heures en secondes
 
     @Value("${jwt.refresh.expiration:604800}")
-    private Long refreshExpiration;
+    private Long refreshExpiration; // 7 jours en secondes
 
+    // 🔧 CORRECTION : Utilisation d'une clé plus robuste
     private SecretKey getSigningKey() {
-        return Keys.hmacShaKeyFor(secret.getBytes());
+        // S'assurer que la clé est assez longue
+        String finalSecret = secret.length() >= 32 ? secret :
+                "myVerySecretKeyForJWTTokenGenerationThatIsAtLeast32CharactersLong";
+        return Keys.hmacShaKeyFor(finalSecret.getBytes());
     }
 
     public String extractUsername(String token) {
-        return extractClaim(token, Claims::getSubject);
+        try {
+            // 🔥 AJOUT DE LOGS POUR DEBUGGING
+            System.out.println("🔍 Extraction username du token: " + token.substring(0, Math.min(50, token.length())) + "...");
+            String username = extractClaim(token, Claims::getSubject);
+            System.out.println("✅ Username extrait: " + username);
+            return username;
+        } catch (Exception e) {
+            System.err.println("❌ Erreur extraction username: " + e.getMessage());
+            throw e;
+        }
     }
 
     public Date extractExpiration(String token) {
@@ -44,11 +57,30 @@ public class JwtUtil {
     }
 
     private Claims extractAllClaims(String token) {
-        return Jwts.parserBuilder()
-                .setSigningKey(getSigningKey())
-                .build()
-                .parseClaimsJws(token)
-                .getBody();
+        try {
+            // 🔥 VERIFICATION PRÉALABLE
+            if (token == null || token.trim().isEmpty()) {
+                throw new IllegalArgumentException("Token est null ou vide");
+            }
+
+            // Vérifier le format du token (doit avoir 2 points)
+            long periodCount = token.chars().filter(ch -> ch == '.').count();
+            if (periodCount != 2) {
+                throw new IllegalArgumentException("Token JWT invalide - doit contenir exactement 2 points. Trouvé: " + periodCount);
+            }
+
+            System.out.println("🔍 Parsing token avec " + periodCount + " points");
+
+            return Jwts.parserBuilder()
+                    .setSigningKey(getSigningKey())
+                    .build()
+                    .parseClaimsJws(token)
+                    .getBody();
+        } catch (Exception e) {
+            System.err.println("❌ Erreur parsing JWT: " + e.getMessage());
+            System.err.println("Token problématique: [" + token + "]");
+            throw e;
+        }
     }
 
     private Boolean isTokenExpired(String token) {
@@ -64,7 +96,14 @@ public class JwtUtil {
         Map<String, Object> claims = new HashMap<>();
         claims.put("role", role);
         claims.put("userId", userId);
-        return createToken(claims, username);
+
+        String token = createToken(claims, username);
+
+        // 🔥 LOG DU TOKEN GÉNÉRÉ
+        System.out.println("✅ Token généré pour " + username + " (longueur: " + token.length() + ")");
+        System.out.println("Token: " + token.substring(0, Math.min(50, token.length())) + "...");
+
+        return token;
     }
 
     public String generateRefreshToken(String username) {
@@ -94,15 +133,25 @@ public class JwtUtil {
     }
 
     public Boolean validateToken(String token, UserDetails userDetails) {
-        final String username = extractUsername(token);
-        return (username.equals(userDetails.getUsername()) && !isTokenExpired(token));
+        try {
+            final String username = extractUsername(token);
+            boolean isValid = (username.equals(userDetails.getUsername()) && !isTokenExpired(token));
+            System.out.println("🔍 Validation token pour " + username + ": " + (isValid ? "✅ VALIDE" : "❌ INVALIDE"));
+            return isValid;
+        } catch (Exception e) {
+            System.err.println("❌ Erreur validation token: " + e.getMessage());
+            return false;
+        }
     }
 
     public Boolean validateToken(String token) {
         try {
             extractAllClaims(token);
-            return !isTokenExpired(token);
+            boolean isValid = !isTokenExpired(token);
+            System.out.println("🔍 Validation token simple: " + (isValid ? "✅ VALIDE" : "❌ EXPIRÉ"));
+            return isValid;
         } catch (Exception e) {
+            System.err.println("❌ Erreur validation token simple: " + e.getMessage());
             return false;
         }
     }

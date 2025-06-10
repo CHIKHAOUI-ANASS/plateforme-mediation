@@ -5,6 +5,7 @@ import com.mediation.platform.security.JwtAuthenticationFilter;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
+import org.springframework.http.HttpMethod;
 import org.springframework.security.authentication.AuthenticationManager;
 import org.springframework.security.config.annotation.authentication.configuration.AuthenticationConfiguration;
 import org.springframework.security.config.annotation.method.configuration.EnableMethodSecurity;
@@ -52,19 +53,33 @@ public class SecurityConfig {
                 .sessionManagement(session ->
                         session.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
                 .authorizeHttpRequests(authz -> authz
-                        // Endpoints publics
+                        // ======== ENDPOINTS PUBLICS (PAS D'AUTH REQUISE) ========
+
+                        // Endpoints d'authentification
                         .requestMatchers("/auth/**").permitAll()
-                        .requestMatchers("/test/**").permitAll()
+
+                        // 🔥 ENDPOINTS DE TEST - PUBLICS POUR DÉVELOPPEMENT
+                        .requestMatchers(HttpMethod.GET, "/test/**").permitAll()
+                        .requestMatchers(HttpMethod.POST, "/test/**").permitAll()
+                        .requestMatchers(HttpMethod.PUT, "/test/**").permitAll()
+                        .requestMatchers(HttpMethod.DELETE, "/test/**").permitAll()
+                        .requestMatchers(HttpMethod.OPTIONS, "/test/**").permitAll()
+
+                        // Documentation et outils de développement
                         .requestMatchers("/h2-console/**").permitAll()
                         .requestMatchers("/swagger-ui/**").permitAll()
                         .requestMatchers("/api-docs/**").permitAll()
                         .requestMatchers("/swagger-ui.html").permitAll()
                         .requestMatchers("/v3/api-docs/**").permitAll()
 
-                        // Endpoints publics pour consultation
-                        .requestMatchers("/projets", "/projets/{id}").permitAll()
-                        .requestMatchers("/associations", "/associations/{id}").permitAll()
-                        .requestMatchers("/statistiques/publiques").permitAll()
+                        // Endpoints publics pour consultation (sans auth)
+                        .requestMatchers(HttpMethod.GET, "/projets").permitAll()
+                        .requestMatchers(HttpMethod.GET, "/projets/{id}").permitAll()
+                        .requestMatchers(HttpMethod.GET, "/associations").permitAll()
+                        .requestMatchers(HttpMethod.GET, "/associations/{id}").permitAll()
+                        .requestMatchers(HttpMethod.GET, "/statistiques/publiques").permitAll()
+
+                        // ======== ENDPOINTS PROTÉGÉS (AUTH REQUISE) ========
 
                         // Endpoints admin
                         .requestMatchers("/admin/**").hasRole("ADMINISTRATEUR")
@@ -81,7 +96,10 @@ public class SecurityConfig {
                         .anyRequest().authenticated()
                 );
 
+        // 🔥 IMPORTANT: Ajouter le filtre JWT APRÈS les endpoints publics
         http.addFilterBefore(jwtAuthenticationFilter, UsernamePasswordAuthenticationFilter.class);
+
+        // Pour H2 console (développement)
         http.headers(headers -> headers.frameOptions().disable());
 
         return http.build();
